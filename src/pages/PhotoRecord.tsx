@@ -11,7 +11,6 @@ import {
   Col,
   message,
   Alert,
-  Divider,
   Tag
 } from 'antd';
 import {
@@ -109,12 +108,11 @@ const PhotoRecordPage: React.FC<PhotoRecordPageProps> = ({ currentVehicle, onAdd
 
   return (
     <Space direction="vertical" size={24} style={{ width: '100%' }}>
-      {/* 拍照区域 */}
-      <Card style={{ borderRadius: 8 }}>
+      <Card>
         {!photoUploaded ? (
           <Space direction="vertical" align="center" style={{ width: '100%', padding: '40px 0' }}>
             <CameraOutlined style={{ fontSize: 64, color: '#d9d9d9', marginBottom: 16 }} />
-            <Title level={4} style={{ marginBottom: 8 }}>点击模拟拍照</Title>
+            <Title level={4} style={{ marginBottom: 8, color: '#262626' }}>点击模拟拍照</Title>
             <Text type="secondary" style={{ marginBottom: 24 }}>支持保养/维修单据照片</Text>
             <Button
               type="primary"
@@ -140,14 +138,9 @@ const PhotoRecordPage: React.FC<PhotoRecordPageProps> = ({ currentVehicle, onAdd
         )}
       </Card>
 
-      {/* 识别结果表单 */}
       {photoUploaded && (
-        <Card title="识别结果（可修改）" style={{ borderRadius: 8 }}>
-          <Form
-            form={form}
-            layout="vertical"
-            onFinish={onFinish}
-          >
+        <Card title="识别结果（可修改）">
+          <Form form={form} layout="vertical" onFinish={onFinish}>
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Item name="date" label="时间">
@@ -175,12 +168,12 @@ const PhotoRecordPage: React.FC<PhotoRecordPageProps> = ({ currentVehicle, onAdd
                           <Text type="secondary">{index + 1}.</Text>
                         </Col>
                         <Col span={10}>
-                          <Text strong>{project.name}</Text>
+                          <Text strong style={{ color: '#262626' }}>{project.name}</Text>
                         </Col>
                         <Col span={6}>
                           <Space>
-                            <DollarOutlined style={{ color: '#666', fontSize: 12 }} />
-                            <Text style={{ color: '#1677FF', fontWeight: 'bold' }}>
+                            <DollarOutlined style={{ color: '#595959', fontSize: 12 }} />
+                            <Text style={{ color: '#1677FF', fontWeight: 'bold', fontSize: 15 }}>
                               ¥{project.cost.toFixed(2)}
                             </Text>
                           </Space>
@@ -198,29 +191,34 @@ const PhotoRecordPage: React.FC<PhotoRecordPageProps> = ({ currentVehicle, onAdd
                   </Space>
                 )}
 
-                <Space.Compact style={{ width: '100%' }}>
-                  <Input
-                    style={{ flex: 2 }}
-                    value={projectNameInput}
-                    onChange={(e) => setProjectNameInput(e.target.value)}
-                    placeholder="手动添加项目"
-                  />
-                  <Input
-                    style={{ flex: 1 }}
-                    value={projectCostInput}
-                    onChange={(e) => setProjectCostInput(e.target.value)}
-                    placeholder="金额"
-                    prefix="¥"
-                  />
-                  <Button
-                    type="primary"
-                    icon={<PlusOutlined />}
-                    onClick={addProject}
-                    disabled={!projectNameInput}
-                  >
-                    添加
-                  </Button>
-                </Space.Compact>
+                <Row gutter={8}>
+                  <Col span={10}>
+                    <Input
+                      value={projectNameInput}
+                      onChange={(e) => setProjectNameInput(e.target.value)}
+                      placeholder="手动添加项目"
+                    />
+                  </Col>
+                  <Col span={8}>
+                    <Input
+                      value={projectCostInput}
+                      onChange={(e) => setProjectCostInput(e.target.value)}
+                      placeholder="金额"
+                      prefix="¥"
+                    />
+                  </Col>
+                  <Col span={6}>
+                    <Button
+                      type="primary"
+                      icon={<PlusOutlined />}
+                      onClick={addProject}
+                      disabled={!projectNameInput}
+                      block
+                    >
+                      添加
+                    </Button>
+                  </Col>
+                </Row>
               </Space>
             </Form.Item>
 
@@ -228,10 +226,10 @@ const PhotoRecordPage: React.FC<PhotoRecordPageProps> = ({ currentVehicle, onAdd
               <Card size="small" style={{ background: '#fafafa', borderRadius: 6 }}>
                 <Row justify="space-between" align="middle">
                   <Col>
-                    <Text type="secondary">共 {projects.length} 个项目</Text>
+                    <Text style={{ color: '#595959' }}>共 {projects.length} 个项目</Text>
                   </Col>
                   <Col>
-                    <Title level={4} style={{ margin: 0, color: '#1677FF' }}>
+                    <Title level={4} style={{ margin: 0, color: '#1677FF', fontWeight: 'bold' }}>
                       ¥{totalCost.toFixed(2)}
                     </Title>
                   </Col>
@@ -243,7 +241,6 @@ const PhotoRecordPage: React.FC<PhotoRecordPageProps> = ({ currentVehicle, onAdd
               <Input placeholder="识别的维修人员" />
             </Form.Item>
 
-            {/* AI建议 */}
             {aiSuggestions.length > 0 && (
               <Form.Item label="AI建议">
                 <Space direction="vertical" size={8} style={{ width: '100%' }}>

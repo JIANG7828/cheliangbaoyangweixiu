@@ -23,15 +23,13 @@ import {
   PlusOutlined,
   BellOutlined,
   RobotOutlined,
-  ClockCircleOutlined,
   CheckCircleOutlined,
   ExclamationCircleOutlined,
   CalendarOutlined
 } from '@ant-design/icons';
-import type { Dayjs } from 'dayjs';
 import { Reminder, AIPlan, Vehicle } from '../types';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 interface ReminderPageProps {
   reminders: Reminder[];
@@ -105,12 +103,11 @@ const ReminderPage: React.FC<ReminderPageProps> = ({
 
   return (
     <Space direction="vertical" size={24} style={{ width: '100%' }}>
-      {/* AI保养计划 */}
       <Card
         title={
           <Space>
             <RobotOutlined style={{ color: '#1677FF' }} />
-            <Text strong>AI保养计划</Text>
+            <Text strong style={{ color: '#262626' }}>AI保养计划</Text>
           </Space>
         }
         extra={
@@ -118,7 +115,6 @@ const ReminderPage: React.FC<ReminderPageProps> = ({
             {collapsed ? '展开' : '收起'}
           </Button>
         }
-        style={{ borderRadius: 8 }}
       >
         <Collapse
           activeKey={collapsed ? [] : ['1']}
@@ -150,7 +146,7 @@ const ReminderPage: React.FC<ReminderPageProps> = ({
                       <Statistic
                         title="即将到期"
                         value={upcomingCount}
-                        valueStyle={{ color: '#FAAD14' }}
+                        valueStyle={{ color: '#D48806' }}
                       />
                     </Card>
                   </Col>
@@ -173,19 +169,19 @@ const ReminderPage: React.FC<ReminderPageProps> = ({
                     >
                       <Space direction="vertical" size={4}>
                         <Space>
-                          <Text strong>{plan.project}</Text>
+                          <Text strong style={{ color: '#262626' }}>{plan.project}</Text>
                           <Tag color={getStatusColor(plan.status)}>
                             {getStatusText(plan.status)}
                           </Tag>
                         </Space>
-                        <Text type="secondary">{plan.desc}</Text>
+                        <Text style={{ color: '#595959' }}>{plan.desc}</Text>
                         <Space>
-                          <CalendarOutlined style={{ color: '#999' }} />
-                          <Text type="secondary">
+                          <CalendarOutlined style={{ color: '#8C8C8C' }} />
+                          <Text style={{ color: '#595959' }}>
                             {plan.nextDate} | {plan.daysUntil}天后
                           </Text>
                         </Space>
-                        <Text type="secondary" style={{ fontSize: 12 }}>
+                        <Text style={{ fontSize: 12, color: '#8C8C8C' }}>
                           置信度: {plan.confidence}
                         </Text>
                       </Space>
@@ -202,12 +198,11 @@ const ReminderPage: React.FC<ReminderPageProps> = ({
         />
       </Card>
 
-      {/* 保养提醒列表 */}
       <Card
         title={
           <Space>
-            <BellOutlined style={{ color: '#FAAD14' }} />
-            <Text strong>保养提醒</Text>
+            <BellOutlined style={{ color: '#D48806' }} />
+            <Text strong style={{ color: '#262626' }}>保养提醒</Text>
           </Space>
         }
         extra={
@@ -219,7 +214,6 @@ const ReminderPage: React.FC<ReminderPageProps> = ({
             添加提醒
           </Button>
         }
-        style={{ borderRadius: 8 }}
       >
         {vehicleReminders.length > 0 ? (
           <List
@@ -231,12 +225,12 @@ const ReminderPage: React.FC<ReminderPageProps> = ({
                     item.notified ? (
                       <CheckCircleOutlined style={{ fontSize: 24, color: '#52C41A' }} />
                     ) : (
-                      <ExclamationCircleOutlined style={{ fontSize: 24, color: '#FAAD14' }} />
+                      <ExclamationCircleOutlined style={{ fontSize: 24, color: '#D48806' }} />
                     )
                   }
                   title={
                     <Space>
-                      <Text strong>{item.project}</Text>
+                      <Text strong style={{ color: '#262626' }}>{item.project}</Text>
                       <Badge
                         status={item.notified ? 'success' : 'warning'}
                         text={item.notified ? '已提醒' : '待提醒'}
@@ -245,8 +239,8 @@ const ReminderPage: React.FC<ReminderPageProps> = ({
                   }
                   description={
                     <Space>
-                      <CalendarOutlined style={{ color: '#999' }} />
-                      <Text type="secondary">
+                      <CalendarOutlined style={{ color: '#8C8C8C' }} />
+                      <Text style={{ color: '#595959' }}>
                         下次保养：{item.nextDate}
                         {item.nextMileage && ` | 里程：${item.nextMileage}公里`}
                       </Text>
@@ -267,7 +261,6 @@ const ReminderPage: React.FC<ReminderPageProps> = ({
         )}
       </Card>
 
-      {/* 添加提醒弹窗 */}
       <Modal
         title="添加保养提醒"
         open={isModalOpen}

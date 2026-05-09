@@ -8,8 +8,7 @@ import {
   CarOutlined,
   RightOutlined,
   ClockCircleOutlined,
-  EnvironmentOutlined,
-  DollarOutlined
+  EnvironmentOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { Vehicle, MaintenanceRecord } from '../types';
@@ -50,7 +49,7 @@ const HomePage: React.FC<HomePageProps> = ({ currentVehicle, vehicles, records, 
       <Card>
         <Space direction="vertical" align="center" style={{ width: '100%', padding: '60px 0' }}>
           <CarOutlined style={{ fontSize: 64, color: '#d9d9d9' }} />
-          <Title level={4} style={{ color: '#666', marginBottom: 8 }}>请先添加车辆</Title>
+          <Title level={4} style={{ color: '#595959', marginBottom: 8 }}>请先添加车辆</Title>
           <Text type="secondary">添加车辆后即可开始记录保养信息</Text>
           <Button type="primary" onClick={() => navigate('/vehicle')} style={{ marginTop: 24 }}>
             添加车辆
@@ -66,7 +65,6 @@ const HomePage: React.FC<HomePageProps> = ({ currentVehicle, vehicles, records, 
       <Card
         hoverable
         onClick={() => navigate('/vehicle')}
-        style={{ borderRadius: 8 }}
       >
         <Row align="middle" justify="space-between">
           <Col>
@@ -79,7 +77,7 @@ const HomePage: React.FC<HomePageProps> = ({ currentVehicle, vehicles, records, 
             </Space>
           </Col>
           <Col>
-            <RightOutlined style={{ color: '#999', fontSize: 16 }} />
+            <RightOutlined style={{ color: '#8C8C8C', fontSize: 16 }} />
           </Col>
         </Row>
       </Card>
@@ -87,7 +85,7 @@ const HomePage: React.FC<HomePageProps> = ({ currentVehicle, vehicles, records, 
       {/* 统计卡片 */}
       <Row gutter={16}>
         <Col span={8}>
-          <Card style={{ borderRadius: 8 }}>
+          <Card>
             <Statistic
               title="记录总数"
               value={vehicleRecords.length}
@@ -96,7 +94,7 @@ const HomePage: React.FC<HomePageProps> = ({ currentVehicle, vehicles, records, 
           </Card>
         </Col>
         <Col span={8}>
-          <Card style={{ borderRadius: 8 }}>
+          <Card>
             <Statistic
               title="累计费用"
               value={totalCost}
@@ -107,7 +105,7 @@ const HomePage: React.FC<HomePageProps> = ({ currentVehicle, vehicles, records, 
           </Card>
         </Col>
         <Col span={8}>
-          <Card style={{ borderRadius: 8 }}>
+          <Card>
             <Statistic
               title="车辆数量"
               value={vehicles.length}
@@ -118,7 +116,7 @@ const HomePage: React.FC<HomePageProps> = ({ currentVehicle, vehicles, records, 
       </Row>
 
       {/* 快捷操作 */}
-      <Card title="快捷操作" style={{ borderRadius: 8 }}>
+      <Card title="快捷操作">
         <Row gutter={16}>
           {actionItems.map((item) => (
             <Col span={6} key={item.path}>
@@ -128,10 +126,10 @@ const HomePage: React.FC<HomePageProps> = ({ currentVehicle, vehicles, records, 
                 onClick={() => navigate(item.path)}
                 style={{
                   width: '100%',
-                  height: 80,
-                  fontSize: 16,
-                  color: '#333',
-                  borderColor: '#f0f0f0'
+                  height: 64,
+                  fontSize: 15,
+                  color: '#262626',
+                  borderColor: '#d9d9d9'
                 }}
               >
                 {item.title}
@@ -149,7 +147,6 @@ const HomePage: React.FC<HomePageProps> = ({ currentVehicle, vehicles, records, 
             查看全部
           </Button>
         }
-        style={{ borderRadius: 8 }}
       >
         {recentRecords.length > 0 ? (
           <Space direction="vertical" size={16} style={{ width: '100%' }}>
@@ -158,22 +155,21 @@ const HomePage: React.FC<HomePageProps> = ({ currentVehicle, vehicles, records, 
                 key={record._id}
                 size="small"
                 hoverable
-                style={{ borderRadius: 8 }}
               >
                 <Row justify="space-between" align="middle">
                   <Col flex="auto">
                     <Space direction="vertical" size={8}>
                       <Space>
-                        <Text strong>{record.date}</Text>
+                        <Text strong style={{ color: '#262626' }}>{record.date}</Text>
                         <Tag color={getRecordTypeColor(record.recordType)}>
                           {record.recordType}
                         </Tag>
                       </Space>
-                      <Text type="secondary">
+                      <Text style={{ color: '#595959' }}>
                         {record.projects.map(p => p.name).join('、')}
                       </Text>
                       <Space>
-                        <EnvironmentOutlined style={{ color: '#999' }} />
+                        <EnvironmentOutlined style={{ color: '#8C8C8C' }} />
                         <Text type="secondary">{record.location}</Text>
                       </Space>
                     </Space>

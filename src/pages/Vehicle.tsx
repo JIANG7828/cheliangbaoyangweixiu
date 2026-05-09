@@ -7,7 +7,6 @@ import {
   DatePicker,
   Space,
   Typography,
-  Tag,
   List,
   Modal,
   message,
@@ -17,9 +16,7 @@ import {
 } from 'antd';
 import {
   PlusOutlined,
-  CarOutlined,
-  CheckCircleOutlined,
-  DeleteOutlined
+  CarOutlined
 } from '@ant-design/icons';
 import { Vehicle } from '../types';
 
@@ -61,7 +58,7 @@ const VehiclePage: React.FC<VehiclePageProps> = ({
         title={
           <Space>
             <CarOutlined style={{ color: '#1677FF' }} />
-            <Text strong>车辆管理</Text>
+            <Text strong style={{ color: '#262626' }}>车辆管理</Text>
           </Space>
         }
         extra={
@@ -73,7 +70,6 @@ const VehiclePage: React.FC<VehiclePageProps> = ({
             添加车辆
           </Button>
         }
-        style={{ borderRadius: 8 }}
       >
         <List
           dataSource={vehicles}
@@ -84,7 +80,7 @@ const VehiclePage: React.FC<VehiclePageProps> = ({
                 style={{
                   width: '100%',
                   borderRadius: 8,
-                  border: item._id === currentVehicle._id ? '2px solid #1677FF' : '1px solid #f0f0f0'
+                  border: item._id === currentVehicle._id ? '2px solid #1677FF' : '1px solid #d9d9d9'
                 }}
                 onClick={() => {
                   onSelectVehicle(item);
@@ -95,14 +91,14 @@ const VehiclePage: React.FC<VehiclePageProps> = ({
                   <Col flex="auto">
                     <Space direction="vertical" size={8}>
                       <Space>
-                        <Text strong style={{ fontSize: 18 }}>{item.plateNumber}</Text>
+                        <Text strong style={{ fontSize: 18, color: '#262626' }}>{item.plateNumber}</Text>
                         {item._id === currentVehicle._id && (
                           <Badge status="success" text="当前车辆" />
                         )}
                       </Space>
-                      <Text type="secondary">{item.vehicleModel}</Text>
+                      <Text style={{ color: '#595959' }}>{item.vehicleModel}</Text>
                       {item.vin && (
-                        <Text type="secondary" style={{ fontSize: 12 }}>
+                        <Text style={{ fontSize: 12, color: '#8C8C8C' }}>
                           VIN: {item.vin}
                         </Text>
                       )}
@@ -115,7 +111,6 @@ const VehiclePage: React.FC<VehiclePageProps> = ({
         />
       </Card>
 
-      {/* 添加车辆弹窗 */}
       <Modal
         title="添加车辆"
         open={isModalOpen}

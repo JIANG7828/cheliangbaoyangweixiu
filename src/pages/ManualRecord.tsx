@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   Card,
   Form,
@@ -8,21 +8,19 @@ import {
   Select,
   Space,
   Typography,
-  Tag,
-  Divider,
   message,
   Row,
   Col,
-  AutoComplete
+  SelectProps
 } from 'antd';
 import {
   PlusOutlined,
   DeleteOutlined,
-  ClockCircleOutlined,
   EnvironmentOutlined,
   DollarOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import dayjs from 'dayjs';
 import { Vehicle, MaintenanceRecord, MaintenanceProject } from '../types';
 import { COMMON_PROJECTS } from '../types';
 
@@ -40,39 +38,34 @@ const ManualRecordPage: React.FC<ManualRecordPageProps> = ({ currentVehicle, onA
   const [projects, setProjects] = useState<MaintenanceProject[]>([]);
   const [projectNameInput, setProjectNameInput] = useState('');
   const [projectCostInput, setProjectCostInput] = useState('');
-  const [suggestions, setSuggestions] = useState<string[]>([]);
 
   const totalCost = useMemo(() =>
     projects.reduce((sum, p) => sum + (p.cost || 0), 0),
     [projects]
   );
 
-  const handleProjectNameChange = (value: string) => {
-    setProjectNameInput(value);
-    if (value) {
-      const filtered = COMMON_PROJECTS.filter(p => p.includes(value)).slice(0, 5);
-      setSuggestions(filtered);
-    } else {
-      setSuggestions([]);
-    }
-  };
+  const projectOptions: SelectProps['options'] = COMMON_PROJECTS.map(p => ({ value: p, label: p }));
 
-  const addProject = (name?: string) => {
-    const projectName = name || projectNameInput;
-    if (!projectName) return;
-
+  const handleProjectSelect = useCallback((value: string) => {
     const cost = parseFloat(projectCostInput) || 0;
-    setProjects([...projects, { name: projectName, cost }]);
+    setProjects(prev => [...prev, { name: value, cost }]);
     setProjectNameInput('');
     setProjectCostInput('');
-    setSuggestions([]);
-  };
+  }, [projectCostInput]);
 
-  const removeProject = (index: number) => {
-    setProjects(projects.filter((_, i) => i !== index));
-  };
+  const addProject = useCallback(() => {
+    if (!projectNameInput) return;
+    const cost = parseFloat(projectCostInput) || 0;
+    setProjects(prev => [...prev, { name: projectNameInput, cost }]);
+    setProjectNameInput('');
+    setProjectCostInput('');
+  }, [projectNameInput, projectCostInput]);
 
-  const onFinish = (values: any) => {
+  const removeProject = useCallback((index: number) => {
+    setProjects(prev => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const onFinish = useCallback((values: any) => {
     if (projects.length === 0) {
       message.warning('请至少添加一个项目');
       return;
@@ -92,7 +85,7 @@ const ManualRecordPage: React.FC<ManualRecordPageProps> = ({ currentVehicle, onA
     onAddRecord(record);
     message.success('保存成功');
     setTimeout(() => navigate('/'), 1000);
-  };
+  }, [projects, totalCost, currentVehicle, onAddRecord, navigate]);
 
   if (!currentVehicle) {
     return (
@@ -104,13 +97,13 @@ const ManualRecordPage: React.FC<ManualRecordPageProps> = ({ currentVehicle, onA
 
   return (
     <Space direction="vertical" size={24} style={{ width: '100%' }}>
-      <Card title="手动记录" style={{ borderRadius: 8 }}>
+      <Card title="手动记录">
         <Form
           form={form}
           layout="vertical"
           onFinish={onFinish}
           initialValues={{
-            date: new Date(),
+            date: dayjs(),
             recordType: '保养'
           }}
         >
@@ -132,26 +125,26 @@ const ManualRecordPage: React.FC<ManualRecordPageProps> = ({ currentVehicle, onA
           </Row>
 
           <Form.Item label="项目" required>
-            <Space direction="vertical" size={12} style={{ width: '100%' }}>
-              {/* 已添加项目列表 */}
+            <Space direction="vertical" size={16} style={{ width: '100%' }}>
               {projects.length > 0 && (
-                <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                <Space direction="vertical" size={10} style={{ width: '100%' }}>
                   {projects.map((project, index) => (
                     <Row key={index} align="middle" style={{
-                      padding: '12px 16px',
+                      padding: '14px 16px',
                       background: '#fafafa',
-                      borderRadius: 6
+                      borderRadius: 6,
+                      border: '1px solid #f0f0f0'
                     }}>
                       <Col span={2}>
-                        <Text type="secondary">{index + 1}.</Text>
+                        <Text style={{ color: '#8C8C8C' }}>{index + 1}.</Text>
                       </Col>
                       <Col span={10}>
-                        <Text strong>{project.name}</Text>
+                        <Text strong style={{ color: '#262626', fontSize: 15 }}>{project.name}</Text>
                       </Col>
                       <Col span={6}>
                         <Space>
-                          <DollarOutlined style={{ color: '#666', fontSize: 12 }} />
-                          <Text style={{ color: '#1677FF', fontWeight: 'bold' }}>
+                          <DollarOutlined style={{ color: '#595959', fontSize: 13 }} />
+                          <Text style={{ color: '#1677FF', fontWeight: 'bold', fontSize: 15 }}>
                             ¥{project.cost.toFixed(2)}
                           </Text>
                         </Space>
@@ -169,49 +162,63 @@ const ManualRecordPage: React.FC<ManualRecordPageProps> = ({ currentVehicle, onA
                 </Space>
               )}
 
-              {/* 添加项目 */}
-              <Space.Compact style={{ width: '100%' }}>
-                <AutoComplete
-                  style={{ flex: 2 }}
-                  value={projectNameInput}
-                  onChange={handleProjectNameChange}
-                  options={suggestions.map(s => ({ value: s }))}
-                  onSelect={(value) => addProject(value)}
-                  placeholder="输入项目名称"
-                />
-                <Input
-                  style={{ flex: 1 }}
-                  value={projectCostInput}
-                  onChange={(e) => setProjectCostInput(e.target.value)}
-                  placeholder="金额"
-                  prefix="¥"
-                />
-                <Button
-                  type="primary"
-                  icon={<PlusOutlined />}
-                  onClick={() => addProject()}
-                  disabled={!projectNameInput}
-                >
-                  添加
-                </Button>
-              </Space.Compact>
+              <Row gutter={12}>
+                <Col span={10}>
+                  <Select
+                    showSearch
+                    value={projectNameInput || undefined}
+                    onSearch={setProjectNameInput}
+                    onChange={handleProjectSelect}
+                    options={projectOptions}
+                    placeholder="选择或输入项目名称"
+                    filterOption={(input, option) =>
+                      (option?.label as string ?? '').toLowerCase().includes(input.toLowerCase())
+                    }
+                    style={{ width: '100%' }}
+                    allowClear
+                  />
+                </Col>
+                <Col span={8}>
+                  <Input
+                    value={projectCostInput}
+                    onChange={(e) => setProjectCostInput(e.target.value)}
+                    placeholder="输入金额"
+                    prefix="¥"
+                    style={{ width: '100%' }}
+                  />
+                </Col>
+                <Col span={6}>
+                  <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={addProject}
+                    disabled={!projectNameInput}
+                    block
+                    style={{ height: 40 }}
+                  >
+                    添加
+                  </Button>
+                </Col>
+              </Row>
             </Space>
           </Form.Item>
 
-          <Form.Item label="总金额">
-            <Card size="small" style={{ background: '#fafafa', borderRadius: 6 }}>
-              <Row justify="space-between" align="middle">
-                <Col>
-                  <Text type="secondary">共 {projects.length} 个项目</Text>
-                </Col>
-                <Col>
-                  <Title level={4} style={{ margin: 0, color: '#1677FF' }}>
-                    ¥{totalCost.toFixed(2)}
-                  </Title>
-                </Col>
-              </Row>
-            </Card>
-          </Form.Item>
+          {projects.length > 0 && (
+            <Form.Item label="总金额">
+              <Card size="small" style={{ background: '#fafafa', borderRadius: 6, border: '1px solid #f0f0f0' }}>
+                <Row justify="space-between" align="middle">
+                  <Col>
+                    <Text style={{ color: '#595959', fontSize: 14 }}>共 {projects.length} 个项目</Text>
+                  </Col>
+                  <Col>
+                    <Title level={4} style={{ margin: 0, color: '#1677FF', fontWeight: 'bold' }}>
+                      ¥{totalCost.toFixed(2)}
+                    </Title>
+                  </Col>
+                </Row>
+              </Card>
+            </Form.Item>
+          )}
 
           <Row gutter={16}>
             <Col span={12}>
@@ -231,7 +238,7 @@ const ManualRecordPage: React.FC<ManualRecordPageProps> = ({ currentVehicle, onA
           </Row>
 
           <Form.Item>
-            <Button type="primary" htmlType="submit" block size="large">
+            <Button type="primary" htmlType="submit" block size="large" style={{ height: 48, fontSize: 16 }}>
               保存记录
             </Button>
           </Form.Item>

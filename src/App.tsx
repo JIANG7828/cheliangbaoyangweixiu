@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, ConfigProvider, theme } from 'antd';
+import { Layout, Menu, ConfigProvider } from 'antd';
+import zhCN from 'antd/locale/zh_CN';
 import {
   CarOutlined,
   FileTextOutlined,
@@ -40,14 +41,38 @@ const AppLayout: React.FC = () => {
 
   return (
     <ConfigProvider
+      locale={zhCN}
       theme={{
         token: {
           colorPrimary: '#1677FF',
+          colorPrimaryHover: '#4096FF',
+          colorPrimaryActive: '#0958D9',
           borderRadius: 8,
           fontSize: 14,
-          colorText: '#333333',
-          colorTextSecondary: '#666666',
-          colorTextTertiary: '#999999',
+          colorText: '#1F1F1F',
+          colorTextSecondary: '#595959',
+          colorTextTertiary: '#8C8C8C',
+          colorBgLayout: '#F0F2F5',
+          colorBgContainer: '#FFFFFF',
+          colorBorder: '#D9D9D9',
+          colorTextHeading: '#262626',
+          colorTextDescription: '#8C8C8C',
+        },
+        components: {
+          Card: {
+            headerBg: '#FAFAFA',
+            boxShadowTertiary: '0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02)',
+          },
+          Button: {
+            borderRadius: 6,
+          },
+          Input: {
+            borderRadius: 6,
+          },
+          Table: {
+            borderRadius: 8,
+            borderRadiusLG: 8,
+          },
         }
       }}
     >
@@ -56,15 +81,18 @@ const AppLayout: React.FC = () => {
           display: 'flex',
           alignItems: 'center',
           background: '#ffffff',
-          borderBottom: '1px solid #f0f0f0',
+          borderBottom: '1px solid #e8e8e8',
           padding: '0 24px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+          boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+          height: 64,
+          lineHeight: '64px'
         }}>
           <div style={{
-            fontSize: 18,
+            fontSize: 20,
             fontWeight: 'bold',
             color: '#1677FF',
-            marginRight: 48
+            marginRight: 48,
+            letterSpacing: '1px'
           }}>
             车辆保养记录
           </div>
@@ -74,12 +102,18 @@ const AppLayout: React.FC = () => {
             selectedKeys={[location.pathname]}
             items={menuItems}
             onClick={({ key }) => navigate(key)}
-            style={{ flex: 1, borderBottom: 'none' }}
+            style={{
+              flex: 1,
+              borderBottom: 'none',
+              fontSize: 15,
+              fontWeight: 500
+            }}
           />
         </Header>
         <Content style={{
-          background: '#F5F7FA',
-          padding: 24
+          background: '#F0F2F5',
+          padding: '24px 24px 48px',
+          minHeight: 'calc(100vh - 64px)'
         }}>
           <div style={{ maxWidth: 1200, margin: '0 auto' }}>
             <Routes>

@@ -1,11 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Card,
   Table,
   Space,
   Typography,
   Tag,
-  DatePicker,
   Select,
   Button,
   Statistic,
@@ -16,7 +15,6 @@ import {
 import {
   DeleteOutlined,
   FilterOutlined,
-  DollarOutlined,
   EnvironmentOutlined,
   CalendarOutlined
 } from '@ant-design/icons';
@@ -73,8 +71,8 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ records, currentVehicle }) =>
       sorter: (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
       render: (text: string) => (
         <Space>
-          <CalendarOutlined style={{ color: '#999' }} />
-          <Text>{text}</Text>
+          <CalendarOutlined style={{ color: '#8C8C8C' }} />
+          <Text style={{ color: '#262626' }}>{text}</Text>
         </Space>
       )
     },
@@ -99,7 +97,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ records, currentVehicle }) =>
       key: 'projects',
       ellipsis: true,
       render: (projects: { name: string }[]) => (
-        <Text>{projects.map(p => p.name).join('、')}</Text>
+        <Text style={{ color: '#262626' }}>{projects.map(p => p.name).join('、')}</Text>
       )
     },
     {
@@ -109,7 +107,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ records, currentVehicle }) =>
       width: 150,
       render: (text: string) => (
         <Space>
-          <EnvironmentOutlined style={{ color: '#999' }} />
+          <EnvironmentOutlined style={{ color: '#8C8C8C' }} />
           <Text type="secondary">{text}</Text>
         </Space>
       )
@@ -121,7 +119,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ records, currentVehicle }) =>
       width: 120,
       sorter: (a, b) => a.totalCost - b.totalCost,
       render: (cost: number) => (
-        <Text strong style={{ color: '#1677FF' }}>
+        <Text strong style={{ color: '#1677FF', fontSize: 15 }}>
           ¥{cost.toFixed(2)}
         </Text>
       )
@@ -140,7 +138,6 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ records, currentVehicle }) =>
 
   return (
     <Space direction="vertical" size={24} style={{ width: '100%' }}>
-      {/* 统计卡片 */}
       <Row gutter={16}>
         <Col span={8}>
           <Card>
@@ -148,6 +145,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ records, currentVehicle }) =>
               title="记录数量"
               value={vehicleRecords.length}
               suffix="条"
+              valueStyle={{ color: '#262626' }}
             />
           </Card>
         </Col>
@@ -169,17 +167,16 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ records, currentVehicle }) =>
               value={vehicleRecords.length > 0 ? totalCost / vehicleRecords.length : 0}
               precision={2}
               prefix="¥"
-              valueStyle={{ color: '#FAAD14' }}
+              valueStyle={{ color: '#D48806' }}
             />
           </Card>
         </Col>
       </Row>
 
-      {/* 筛选区域 */}
       <Card>
         <Space>
-          <FilterOutlined />
-          <Text strong>筛选：</Text>
+          <FilterOutlined style={{ color: '#595959' }} />
+          <Text strong style={{ color: '#262626' }}>筛选：</Text>
           <Select
             style={{ width: 150 }}
             value={timeFilter}
@@ -206,7 +203,6 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ records, currentVehicle }) =>
         </Space>
       </Card>
 
-      {/* 记录表格 */}
       <Card>
         <Table
           columns={columns}
