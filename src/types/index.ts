@@ -5,6 +5,11 @@ export interface Vehicle {
   vehicleModel: string;
   vin?: string;
   purchaseDate?: string;
+  // AI 分析用扩展字段
+  brand?: string;
+  model?: string;
+  year?: number;
+  mileage?: number;
 }
 
 // 保养项目类型

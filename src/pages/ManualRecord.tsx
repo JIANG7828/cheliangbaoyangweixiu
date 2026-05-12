@@ -5,13 +5,13 @@ import {
   Input,
   Button,
   DatePicker,
+  AutoComplete,
   Select,
   Space,
   Typography,
   message,
   Row,
-  Col,
-  SelectProps
+  Col
 } from 'antd';
 import {
   PlusOutlined,
@@ -44,18 +44,18 @@ const ManualRecordPage: React.FC<ManualRecordPageProps> = ({ currentVehicle, onA
     [projects]
   );
 
-  const projectOptions: SelectProps['options'] = COMMON_PROJECTS.map(p => ({ value: p, label: p }));
-
-  const handleProjectSelect = useCallback((value: string) => {
-    const cost = parseFloat(projectCostInput) || 0;
-    setProjects(prev => [...prev, { name: value, cost }]);
-    setProjectNameInput('');
-    setProjectCostInput('');
-  }, [projectCostInput]);
+  const projectOptions: string[] = COMMON_PROJECTS;
 
   const addProject = useCallback(() => {
-    if (!projectNameInput) return;
+    if (!projectNameInput) {
+      message.warning('请输入项目名称');
+      return;
+    }
     const cost = parseFloat(projectCostInput) || 0;
+    if (cost <= 0) {
+      message.warning('请输入金额');
+      return;
+    }
     setProjects(prev => [...prev, { name: projectNameInput, cost }]);
     setProjectNameInput('');
     setProjectCostInput('');
@@ -164,19 +164,15 @@ const ManualRecordPage: React.FC<ManualRecordPageProps> = ({ currentVehicle, onA
 
               <Row gutter={12}>
                 <Col span={10}>
-                  <Select
-                    showSearch
-                    value={projectNameInput || undefined}
-                    onSearch={setProjectNameInput}
-                    onChange={handleProjectSelect}
-                    options={projectOptions}
-                    placeholder="选择或输入项目名称"
-                    filterOption={(input, option) =>
-                      (option?.label as string ?? '').toLowerCase().includes(input.toLowerCase())
-                    }
-                    style={{ width: '100%' }}
-                    allowClear
-                  />
+                  <AutoComplete
+                  value={projectNameInput}
+                  onChange={setProjectNameInput}
+                  onSelect={setProjectNameInput}
+                  options={projectOptions.map(p => ({ value: p }))}
+                  placeholder="输入项目名称"
+                  style={{ width: '100%' }}
+                  allowClear
+                />
                 </Col>
                 <Col span={8}>
                   <Input
@@ -185,6 +181,7 @@ const ManualRecordPage: React.FC<ManualRecordPageProps> = ({ currentVehicle, onA
                     placeholder="输入金额"
                     prefix="¥"
                     style={{ width: '100%' }}
+                    onPressEnter={addProject}
                   />
                 </Col>
                 <Col span={6}>
@@ -192,7 +189,7 @@ const ManualRecordPage: React.FC<ManualRecordPageProps> = ({ currentVehicle, onA
                     type="primary"
                     icon={<PlusOutlined />}
                     onClick={addProject}
-                    disabled={!projectNameInput}
+                    disabled={!projectNameInput || !projectCostInput}
                     block
                     style={{ height: 40 }}
                   >

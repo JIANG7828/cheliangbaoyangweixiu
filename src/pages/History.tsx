@@ -16,19 +16,23 @@ import {
   DeleteOutlined,
   FilterOutlined,
   EnvironmentOutlined,
-  CalendarOutlined
+  CalendarOutlined,
+  EyeOutlined
 } from '@ant-design/icons';
 import { MaintenanceRecord } from '../types';
 import type { ColumnsType } from 'antd/es/table';
+import { useNavigate } from 'react-router-dom';
 
 const { Text } = Typography;
 
 interface HistoryPageProps {
   records: MaintenanceRecord[];
   currentVehicle: { _id: string };
+  onDeleteRecord: (recordId: string) => void;
 }
 
-const HistoryPage: React.FC<HistoryPageProps> = ({ records, currentVehicle }) => {
+const HistoryPage: React.FC<HistoryPageProps> = ({ records, currentVehicle, onDeleteRecord }) => {
+  const navigate = useNavigate();
   const [timeFilter, setTimeFilter] = useState(0);
   const [typeFilter, setTypeFilter] = useState('');
 
@@ -127,14 +131,39 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ records, currentVehicle }) =>
     {
       title: '操作',
       key: 'action',
-      width: 80,
+      width: 120,
       render: (_, record) => (
-        <Popconfirm title="确定删除？" onConfirm={() => {}}>
-          <Button type="text" danger icon={<DeleteOutlined />} />
-        </Popconfirm>
+        <Space>
+          <Button
+            type="text"
+            icon={<EyeOutlined />}
+            onClick={(e) => {
+              e.stopPropagation()
+              navigate('/record-detail', { state: { recordId: record._id } })
+            }}
+          />
+          <Popconfirm
+            title="确定删除此记录？"
+            description="删除后无法恢复"
+            onConfirm={(e) => {
+              e?.stopPropagation()
+              onDeleteRecord(record._id)
+            }}
+            okText="删除"
+            cancelText="取消"
+            okButtonProps={{ danger: true }}
+          >
+            <Button type="text" danger icon={<DeleteOutlined />} onClick={(e) => e.stopPropagation()} />
+          </Popconfirm>
+        </Space>
       )
     }
   ];
+
+  const handleRowClick = (record: MaintenanceRecord) => ({
+    onClick: () => navigate('/record-detail', { state: { recordId: record._id } }),
+    style: { cursor: 'pointer' }
+  });
 
   return (
     <Space direction="vertical" size={24} style={{ width: '100%' }}>
@@ -208,6 +237,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ records, currentVehicle }) =>
           columns={columns}
           dataSource={vehicleRecords}
           rowKey="_id"
+          onRow={handleRowClick}
           pagination={{
             pageSize: 10,
             showSizeChanger: true,

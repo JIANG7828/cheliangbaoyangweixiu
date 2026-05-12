@@ -12,13 +12,17 @@ import {
   message,
   Row,
   Col,
-  Badge
+  Badge,
+  Popconfirm
 } from 'antd';
 import {
   PlusOutlined,
-  CarOutlined
+  CarOutlined,
+  EditOutlined,
+  DeleteOutlined
 } from '@ant-design/icons';
 import { Vehicle } from '../types';
+import dayjs from 'dayjs';
 
 const { Text } = Typography;
 
@@ -26,6 +30,8 @@ interface VehiclePageProps {
   vehicles: Vehicle[];
   currentVehicle: Vehicle;
   onAddVehicle: (vehicle: Vehicle) => void;
+  onUpdateVehicle: (vehicle: Vehicle) => void;
+  onDeleteVehicle: (vehicleId: string) => void;
   onSelectVehicle: (vehicle: Vehicle) => void;
 }
 
@@ -33,23 +39,65 @@ const VehiclePage: React.FC<VehiclePageProps> = ({
   vehicles,
   currentVehicle,
   onAddVehicle,
+  onUpdateVehicle,
+  onDeleteVehicle,
   onSelectVehicle
 }) => {
   const [form] = Form.useForm();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
 
-  const handleAddVehicle = (values: any) => {
-    const vehicle: Vehicle = {
-      _id: Date.now().toString(),
+  const handleOpenAdd = () => {
+    setEditingVehicle(null);
+    form.resetFields();
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEdit = (vehicle: Vehicle) => {
+    setEditingVehicle(vehicle);
+    form.setFieldsValue({
+      plateNumber: vehicle.plateNumber,
+      vehicleModel: vehicle.vehicleModel,
+      vin: vehicle.vin || undefined,
+      purchaseDate: vehicle.purchaseDate ? dayjs(vehicle.purchaseDate) : undefined
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleSave = (values: any) => {
+    const modelStr = values.vehicleModel || '';
+    const parts = modelStr.split(' ');
+    const brand = parts[0] || '';
+    const model = parts.slice(1).join(' ') || '';
+    const yearMatch = modelStr.match(/\d{4}/);
+
+    const vehicleData: Vehicle = {
+      _id: editingVehicle ? editingVehicle._id : Date.now().toString(),
       plateNumber: values.plateNumber,
-      vehicleModel: values.vehicleModel,
+      vehicleModel: modelStr,
       vin: values.vin || undefined,
-      purchaseDate: values.purchaseDate?.format('YYYY-MM-DD')
+      purchaseDate: values.purchaseDate?.format('YYYY-MM-DD'),
+      brand,
+      model,
+      year: yearMatch ? parseInt(yearMatch[0]) : undefined,
+      mileage: editingVehicle?.mileage || undefined,
     };
-    onAddVehicle(vehicle);
-    message.success('添加成功');
+
+    if (editingVehicle) {
+      onUpdateVehicle(vehicleData);
+      message.success('更新成功');
+    } else {
+      onAddVehicle(vehicleData);
+      message.success('添加成功');
+    }
     setIsModalOpen(false);
     form.resetFields();
+    setEditingVehicle(null);
+  };
+
+  const handleDelete = (vehicle: Vehicle) => {
+    onDeleteVehicle(vehicle._id);
+    message.success('删除成功');
   };
 
   return (
@@ -65,7 +113,7 @@ const VehiclePage: React.FC<VehiclePageProps> = ({
           <Button
             type="primary"
             icon={<PlusOutlined />}
-            onClick={() => setIsModalOpen(true)}
+            onClick={handleOpenAdd}
           >
             添加车辆
           </Button>
@@ -82,13 +130,12 @@ const VehiclePage: React.FC<VehiclePageProps> = ({
                   borderRadius: 8,
                   border: item._id === currentVehicle._id ? '2px solid #1677FF' : '1px solid #d9d9d9'
                 }}
-                onClick={() => {
-                  onSelectVehicle(item);
-                  message.success(`已切换到 ${item.plateNumber}`);
-                }}
               >
                 <Row justify="space-between" align="middle">
-                  <Col flex="auto">
+                  <Col flex="auto" style={{ cursor: 'pointer' }} onClick={() => {
+                    onSelectVehicle(item);
+                    message.success(`已切换到 ${item.plateNumber}`);
+                  }}>
                     <Space direction="vertical" size={8}>
                       <Space>
                         <Text strong style={{ fontSize: 18, color: '#262626' }}>{item.plateNumber}</Text>
@@ -104,6 +151,43 @@ const VehiclePage: React.FC<VehiclePageProps> = ({
                       )}
                     </Space>
                   </Col>
+                  <Col>
+                    <Space>
+                      <Button
+                        type="text"
+                        icon={<EditOutlined />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenEdit(item);
+                        }}
+                      >
+                        编辑
+                      </Button>
+                      {vehicles.length > 1 && (
+                        <Popconfirm
+                          title="确认删除此车辆？"
+                          description="删除后不可恢复，相关保养记录将保留"
+                          onConfirm={(e) => {
+                            e?.stopPropagation();
+                            handleDelete(item);
+                          }}
+                          onCancel={(e) => e?.stopPropagation()}
+                          okText="删除"
+                          cancelText="取消"
+                          okButtonProps={{ danger: true }}
+                        >
+                          <Button
+                            type="text"
+                            danger
+                            icon={<DeleteOutlined />}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            删除
+                          </Button>
+                        </Popconfirm>
+                      )}
+                    </Space>
+                  </Col>
                 </Row>
               </Card>
             </List.Item>
@@ -112,15 +196,19 @@ const VehiclePage: React.FC<VehiclePageProps> = ({
       </Card>
 
       <Modal
-        title="添加车辆"
+        title={editingVehicle ? '编辑车辆' : '添加车辆'}
         open={isModalOpen}
-        onCancel={() => setIsModalOpen(false)}
+        onCancel={() => {
+          setIsModalOpen(false);
+          form.resetFields();
+          setEditingVehicle(null);
+        }}
         footer={null}
       >
         <Form
           form={form}
           layout="vertical"
-          onFinish={handleAddVehicle}
+          onFinish={handleSave}
         >
           <Form.Item
             name="plateNumber"
@@ -148,7 +236,7 @@ const VehiclePage: React.FC<VehiclePageProps> = ({
 
           <Form.Item>
             <Button type="primary" htmlType="submit" block>
-              保存
+              {editingVehicle ? '更新' : '保存'}
             </Button>
           </Form.Item>
         </Form>

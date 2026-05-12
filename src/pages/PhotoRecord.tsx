@@ -11,7 +11,10 @@ import {
   Col,
   message,
   Alert,
-  Tag
+  Tag,
+  Modal,
+  Upload,
+  Image
 } from 'antd';
 import {
   PlusOutlined,
@@ -19,10 +22,14 @@ import {
   CameraOutlined,
   DollarOutlined,
   RobotOutlined,
-  CheckCircleOutlined
+  CheckCircleOutlined,
+  InboxOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import dayjs from 'dayjs';
 import { Vehicle, MaintenanceRecord, MaintenanceProject } from '../types';
+import { recognizeReceipt, generateSuggestions, imageToBase64, AIOCRResult, AIBehaviorSuggestion } from '../services/ai';
+import type { UploadFile, UploadProps } from 'antd/es/upload/interface';
 
 const { Title, Text } = Typography;
 
@@ -32,7 +39,7 @@ interface PhotoRecordPageProps {
   onAddRecord: (record: MaintenanceRecord) => void;
 }
 
-const PhotoRecordPage: React.FC<PhotoRecordPageProps> = ({ currentVehicle, onAddRecord }) => {
+const PhotoRecordPage: React.FC<PhotoRecordPageProps> = ({ currentVehicle, records, onAddRecord }) => {
   const navigate = useNavigate();
   const [form] = Form.useForm();
   const [photoUploaded, setPhotoUploaded] = useState(false);
@@ -40,37 +47,109 @@ const PhotoRecordPage: React.FC<PhotoRecordPageProps> = ({ currentVehicle, onAdd
   const [projects, setProjects] = useState<MaintenanceProject[]>([]);
   const [projectNameInput, setProjectNameInput] = useState('');
   const [projectCostInput, setProjectCostInput] = useState('');
-  const [aiSuggestions] = useState([
-    { text: '根据单据内容，建议同时检查刹车油状态', type: 'info' },
-    { text: '上次更换空滤已超过8000公里，建议检查', type: 'warning' }
-  ]);
+  const [aiSuggestions, setAiSuggestions] = useState<AIBehaviorSuggestion[]>([]);
+  const [fileList, setFileList] = useState<UploadFile[]>([]);
+  const [receiptDesc, setReceiptDesc] = useState('');
+  const [showManualInput, setShowManualInput] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string>('');
 
   const totalCost = useMemo(() =>
     projects.reduce((sum, p) => sum + (p.cost || 0), 0),
     [projects]
   );
 
-  const simulatePhotoUpload = () => {
+  const handleImageRecognize = async (file: File) => {
     setRecognizing(true);
-    setTimeout(() => {
-      setRecognizing(false);
-      setPhotoUploaded(true);
+    try {
+      const base64 = await imageToBase64(file);
+      setPreviewImage(base64);
+      
+      const result: AIOCRResult = await recognizeReceipt(base64, true);
+      
+      setProjects(result.projects);
       form.setFieldsValue({
-        date: new Date(),
-        location: '丰田4S店',
-        mechanic: '张师傅'
+        date: result.date ? dayjs(result.date) : dayjs(),
+        location: result.location || '',
+        mechanic: result.mechanic || ''
       });
-      setProjects([
-        { name: '更换机油', cost: 350 },
-        { name: '更换机滤', cost: 80 }
-      ]);
-      message.success('AI识别成功！请确认信息');
-    }, 2000);
+      setPhotoUploaded(true);
+      message.success(`AI 识别成功！识别到 ${result.projects.length} 个项目`);
+
+      // 获取AI建议
+      const suggestions = await generateSuggestions(
+        { projects: result.projects.map(p => p.name) },
+        records.filter(r => r.vehicleId === currentVehicle._id)
+      );
+      setAiSuggestions(suggestions);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '识别失败，请重试');
+    } finally {
+      setRecognizing(false);
+    }
+  };
+
+  const uploadProps: UploadProps = {
+    name: 'file',
+    listType: 'picture-card',
+    fileList,
+    maxCount: 1,
+    accept: 'image/*',
+    customRequest: ({ file, onSuccess, onError }) => {
+      handleImageRecognize(file as File)
+        .then(() => onSuccess?.('ok'))
+        .catch(err => onError?.(err));
+    },
+    onChange: (info) => {
+      setFileList(info.fileList);
+    },
+    onRemove: () => {
+      setFileList([]);
+      setPhotoUploaded(false);
+      setPreviewImage('');
+    },
+  };
+
+  const handleTextRecognize = async () => {
+    if (!receiptDesc.trim()) {
+      message.warning('请输入单据描述');
+      return;
+    }
+    setRecognizing(true);
+    try {
+      const result: AIOCRResult = await recognizeReceipt(receiptDesc, false);
+      
+      setProjects(result.projects);
+      form.setFieldsValue({
+        date: result.date ? dayjs(result.date) : dayjs(),
+        location: result.location || '',
+        mechanic: result.mechanic || ''
+      });
+      setPhotoUploaded(true);
+      message.success(`AI 识别成功！识别到 ${result.projects.length} 个项目`);
+
+      const suggestions = await generateSuggestions(
+        { projects: result.projects.map(p => p.name) },
+        records.filter(r => r.vehicleId === currentVehicle._id)
+      );
+      setAiSuggestions(suggestions);
+      setShowManualInput(false);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '识别失败，请重试');
+    } finally {
+      setRecognizing(false);
+    }
   };
 
   const addProject = () => {
-    if (!projectNameInput) return;
+    if (!projectNameInput) {
+      message.warning('请输入项目名称');
+      return;
+    }
     const cost = parseFloat(projectCostInput) || 0;
+    if (cost <= 0) {
+      message.warning('请输入金额');
+      return;
+    }
     setProjects([...projects, { name: projectNameInput, cost }]);
     setProjectNameInput('');
     setProjectCostInput('');
@@ -110,30 +189,43 @@ const PhotoRecordPage: React.FC<PhotoRecordPageProps> = ({ currentVehicle, onAdd
     <Space direction="vertical" size={24} style={{ width: '100%' }}>
       <Card>
         {!photoUploaded ? (
-          <Space direction="vertical" align="center" style={{ width: '100%', padding: '40px 0' }}>
-            <CameraOutlined style={{ fontSize: 64, color: '#d9d9d9', marginBottom: 16 }} />
-            <Title level={4} style={{ marginBottom: 8, color: '#262626' }}>点击模拟拍照</Title>
-            <Text type="secondary" style={{ marginBottom: 24 }}>支持保养/维修单据照片</Text>
-            <Button
-              type="primary"
-              icon={<CameraOutlined />}
-              onClick={simulatePhotoUpload}
-              loading={recognizing}
-              size="large"
-            >
-              {recognizing ? 'AI识别中...' : '模拟拍照'}
-            </Button>
+          <Space direction="vertical" align="center" style={{ width: '100%', padding: '24px 0' }}>
+            <CameraOutlined style={{ fontSize: 56, color: '#1677FF', marginBottom: 12 }} />
+            <Title level={4} style={{ marginBottom: 4, color: '#262626' }}>AI 智能识别保养单据</Title>
+            <Text type="secondary" style={{ marginBottom: 20 }}>拍照或上传单据，AI 自动提取关键信息</Text>
+            
+            <Space direction="vertical" size={16} style={{ width: '100%', maxWidth: 500 }}>
+              {previewImage && (
+                <div style={{ marginBottom: 12 }}>
+                  <Image src={previewImage} alt="Preview" style={{ maxWidth: '100%', maxHeight: 200 }} />
+                </div>
+              )}
+              <Upload.Dragger {...uploadProps}>
+                <p className="ant-upload-drag-icon">
+                  <InboxOutlined style={{ color: '#1677FF', fontSize: 48 }} />
+                </p>
+                <p className="ant-upload-text">点击或拖拽上传保养单据图片</p>
+                <p className="ant-upload-hint">支持 JPG、PNG 格式，AI 将自动识别内容</p>
+              </Upload.Dragger>
+              <Button
+                type="link"
+                onClick={() => setShowManualInput(true)}
+                style={{ marginTop: -8 }}
+              >
+                或者手动描述单据内容
+              </Button>
+            </Space>
           </Space>
         ) : (
-          <Space direction="vertical" size={16} style={{ width: '100%' }}>
+          <Space direction="vertical" size={12} style={{ width: '100%' }}>
             <Alert
-              message="AI识别成功"
-              description="已自动识别单据信息，您可以修改以下内容"
+              message="AI 识别成功"
+              description="已自动提取单据信息，请核对并修改"
               type="success"
               icon={<CheckCircleOutlined />}
               showIcon
             />
-            <Tag icon={<RobotOutlined />} color="blue">AI识别 92%</Tag>
+            <Tag icon={<RobotOutlined />} color="processing">AI 识别完成</Tag>
           </Space>
         )}
       </Card>
@@ -196,15 +288,17 @@ const PhotoRecordPage: React.FC<PhotoRecordPageProps> = ({ currentVehicle, onAdd
                     <Input
                       value={projectNameInput}
                       onChange={(e) => setProjectNameInput(e.target.value)}
-                      placeholder="手动添加项目"
+                      placeholder="项目名称"
+                      onPressEnter={addProject}
                     />
                   </Col>
                   <Col span={8}>
                     <Input
                       value={projectCostInput}
                       onChange={(e) => setProjectCostInput(e.target.value)}
-                      placeholder="金额"
+                      placeholder="输入金额"
                       prefix="¥"
+                      onPressEnter={addProject}
                     />
                   </Col>
                   <Col span={6}>
@@ -212,7 +306,7 @@ const PhotoRecordPage: React.FC<PhotoRecordPageProps> = ({ currentVehicle, onAdd
                       type="primary"
                       icon={<PlusOutlined />}
                       onClick={addProject}
-                      disabled={!projectNameInput}
+                      disabled={!projectNameInput || !projectCostInput}
                       block
                     >
                       添加
@@ -242,7 +336,7 @@ const PhotoRecordPage: React.FC<PhotoRecordPageProps> = ({ currentVehicle, onAdd
             </Form.Item>
 
             {aiSuggestions.length > 0 && (
-              <Form.Item label="AI建议">
+              <Form.Item label="AI 智能建议">
                 <Space direction="vertical" size={8} style={{ width: '100%' }}>
                   {aiSuggestions.map((suggestion, index) => (
                     <Alert
@@ -264,6 +358,38 @@ const PhotoRecordPage: React.FC<PhotoRecordPageProps> = ({ currentVehicle, onAdd
           </Form>
         </Card>
       )}
+
+      <Modal
+        title="描述保养单据内容"
+        open={showManualInput}
+        onCancel={() => setShowManualInput(false)}
+        footer={[
+          <Button key="cancel" onClick={() => setShowManualInput(false)}>取消</Button>,
+          <Button
+            key="submit"
+            type="primary"
+            loading={recognizing}
+            onClick={handleTextRecognize}
+          >
+            AI 识别
+          </Button>
+        ]}
+      >
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <Alert
+            message="使用说明"
+            description="请简单描述单据上的内容，AI 会自动提取项目、金额等信息。"
+            type="info"
+            showIcon
+          />
+          <Input.TextArea
+            rows={4}
+            value={receiptDesc}
+            onChange={(e) => setReceiptDesc(e.target.value)}
+            placeholder="例如：今天在丰田4S店保养，张师傅帮忙更换了机油350元，更换机滤80元，更换空滤60元"
+          />
+        </Space>
+      </Modal>
     </Space>
   );
 };

@@ -1,77 +1,70 @@
-import React, { useState } from 'react';
+import React, { useState } from 'react'
 import {
   Card,
-  Form,
-  Input,
   Button,
-  DatePicker,
   Space,
   Typography,
   Tag,
-  Modal,
-  message,
   Row,
   Col,
   Timeline,
-  Collapse,
   Alert,
   Statistic,
-  List,
-  Badge
-} from 'antd';
+  Form,
+  Input,
+  DatePicker,
+  Modal,
+  message
+} from 'antd'
 import {
-  PlusOutlined,
-  BellOutlined,
   RobotOutlined,
-  CheckCircleOutlined,
   ExclamationCircleOutlined,
-  CalendarOutlined
-} from '@ant-design/icons';
-import { Reminder, AIPlan, Vehicle } from '../types';
+  BellOutlined,
+  CalendarOutlined,
+  ThunderboltOutlined,
+  PlusOutlined
+} from '@ant-design/icons'
+import { AIPlan, Vehicle, MaintenanceRecord, Reminder } from '../types'
 
-const { Text } = Typography;
+const { Text } = Typography
 
 interface ReminderPageProps {
-  reminders: Reminder[];
-  aiPlan: AIPlan[];
-  currentVehicle: Vehicle;
-  onAddReminder: (reminder: Reminder) => void;
-  onAddAIPlan: (reminders: Reminder[]) => void;
+  currentVehicle: Vehicle
+  records: MaintenanceRecord[]
+  aiPlans: AIPlan[]
+  onAddReminder: (reminder: Reminder) => void
 }
 
 const ReminderPage: React.FC<ReminderPageProps> = ({
-  reminders,
-  aiPlan,
   currentVehicle,
-  onAddReminder,
-  onAddAIPlan
+  records,
+  aiPlans,
+  onAddReminder
 }) => {
-  const [form] = Form.useForm();
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  const [form] = Form.useForm()
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
-  const vehicleReminders = reminders.filter(r => r.vehicleId === currentVehicle._id);
-  const urgentCount = aiPlan.filter(p => p.status === 'urgent').length;
-  const upcomingCount = aiPlan.filter(p => p.status === 'upcoming').length;
-  const plannedCount = aiPlan.filter(p => p.status === 'planned').length;
+  const urgentItems = aiPlans.filter(p => p.status === 'urgent')
+  const upcomingItems = aiPlans.filter(p => p.status === 'upcoming')
+  const plannedItems = aiPlans.filter(p => p.status === 'planned')
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'urgent': return 'error';
-      case 'upcoming': return 'warning';
-      case 'planned': return 'success';
-      default: return 'default';
+      case 'urgent': return 'error'
+      case 'upcoming': return 'warning'
+      case 'planned': return 'success'
+      default: return 'default'
     }
-  };
+  }
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'urgent': return '紧急';
-      case 'upcoming': return '即将到期';
-      case 'planned': return '计划中';
-      default: return status;
+      case 'urgent': return '紧急'
+      case 'upcoming': return '即将到期'
+      case 'planned': return '计划中'
+      default: return status
     }
-  };
+  }
 
   const handleAddReminder = (values: any) => {
     const reminder: Reminder = {
@@ -81,182 +74,138 @@ const ReminderPage: React.FC<ReminderPageProps> = ({
       nextDate: values.nextDate.format('YYYY-MM-DD'),
       nextMileage: values.nextMileage || undefined,
       notified: false
-    };
-    onAddReminder(reminder);
-    message.success('添加成功');
-    setIsModalOpen(false);
-    form.resetFields();
-  };
+    }
+    onAddReminder(reminder)
+    message.success('添加成功')
+    setIsModalOpen(false)
+    form.resetFields()
+  }
 
-  const handleAddAIPlan = () => {
-    const newReminders: Reminder[] = aiPlan.map(p => ({
-      _id: Date.now().toString() + Math.random(),
-      vehicleId: currentVehicle._id,
-      project: p.project,
-      nextDate: p.nextDate,
-      nextMileage: undefined,
-      notified: false
-    }));
-    onAddAIPlan(newReminders);
-    message.success(`已添加 ${aiPlan.length} 条AI保养计划到提醒`);
-  };
+  const renderTimeline = (items: AIPlan[], color: string) => (
+    <Timeline
+      items={items.map((item) => ({
+        color,
+        children: (
+          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+            <Space>
+              <Text strong>{item.project}</Text>
+              <Tag color={getStatusColor(item.status)}>{getStatusText(item.status)}</Tag>
+            </Space>
+            <Text type="secondary" style={{ fontSize: 13 }}>{item.desc}</Text>
+            <Space>
+              <CalendarOutlined />
+              <Text type="secondary">{item.nextDate} | {item.daysUntil}天后</Text>
+            </Space>
+            <Text style={{ fontSize: 12, color: '#8C8C8C' }}>置信度: {item.confidence}</Text>
+          </Space>
+        )
+      }))}
+    />
+  )
 
   return (
     <Space direction="vertical" size={24} style={{ width: '100%' }}>
+      {/* AI智能保养意见 */}
       <Card
         title={
           <Space>
             <RobotOutlined style={{ color: '#1677FF' }} />
-            <Text strong style={{ color: '#262626' }}>AI保养计划</Text>
+            <Text strong style={{ color: '#262626' }}>AI智能保养意见</Text>
           </Space>
         }
-        extra={
-          <Button onClick={() => setCollapsed(!collapsed)}>
-            {collapsed ? '展开' : '收起'}
-          </Button>
-        }
       >
-        <Collapse
-          activeKey={collapsed ? [] : ['1']}
-          onChange={(keys) => setCollapsed(keys.length === 0)}
-          items={[{
-            key: '1',
-            label: '',
-            children: (
-              <Space direction="vertical" size={16} style={{ width: '100%' }}>
-                <Alert
-                  message="智能保养建议"
-                  description="根据您的车辆使用情况和历史记录，AI分析出以下即将到期的保养项目，建议您按计划执行以保持车辆最佳状态。"
-                  type="info"
-                  showIcon
-                />
-
-                <Row gutter={16}>
-                  <Col span={8}>
-                    <Card>
-                      <Statistic
-                        title="紧急"
-                        value={urgentCount}
-                        valueStyle={{ color: '#FF4D4F' }}
-                      />
-                    </Card>
-                  </Col>
-                  <Col span={8}>
-                    <Card>
-                      <Statistic
-                        title="即将到期"
-                        value={upcomingCount}
-                        valueStyle={{ color: '#D48806' }}
-                      />
-                    </Card>
-                  </Col>
-                  <Col span={8}>
-                    <Card>
-                      <Statistic
-                        title="计划中"
-                        value={plannedCount}
-                        valueStyle={{ color: '#52C41A' }}
-                      />
-                    </Card>
-                  </Col>
-                </Row>
-
-                <Timeline>
-                  {aiPlan.map((plan, index) => (
-                    <Timeline.Item
-                      key={index}
-                      color={plan.status === 'urgent' ? 'red' : plan.status === 'upcoming' ? 'orange' : 'green'}
-                    >
-                      <Space direction="vertical" size={4}>
-                        <Space>
-                          <Text strong style={{ color: '#262626' }}>{plan.project}</Text>
-                          <Tag color={getStatusColor(plan.status)}>
-                            {getStatusText(plan.status)}
-                          </Tag>
-                        </Space>
-                        <Text style={{ color: '#595959' }}>{plan.desc}</Text>
-                        <Space>
-                          <CalendarOutlined style={{ color: '#8C8C8C' }} />
-                          <Text style={{ color: '#595959' }}>
-                            {plan.nextDate} | {plan.daysUntil}天后
-                          </Text>
-                        </Space>
-                        <Text style={{ fontSize: 12, color: '#8C8C8C' }}>
-                          置信度: {plan.confidence}
-                        </Text>
-                      </Space>
-                    </Timeline.Item>
-                  ))}
-                </Timeline>
-
-                <Button type="primary" onClick={handleAddAIPlan} block>
-                  一键添加到提醒
-                </Button>
-              </Space>
-            )
-          }]}
+        <Alert
+          message="AI已根据车辆使用情况和历史记录自动生成保养建议，记录更新后将自动重新生成"
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
         />
-      </Card>
 
-      <Card
-        title={
-          <Space>
-            <BellOutlined style={{ color: '#D48806' }} />
-            <Text strong style={{ color: '#262626' }}>保养提醒</Text>
-          </Space>
-        }
-        extra={
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => setIsModalOpen(true)}
-          >
-            添加提醒
-          </Button>
-        }
-      >
-        {vehicleReminders.length > 0 ? (
-          <List
-            dataSource={vehicleReminders}
-            renderItem={(item) => (
-              <List.Item>
-                <List.Item.Meta
-                  avatar={
-                    item.notified ? (
-                      <CheckCircleOutlined style={{ fontSize: 24, color: '#52C41A' }} />
-                    ) : (
-                      <ExclamationCircleOutlined style={{ fontSize: 24, color: '#D48806' }} />
-                    )
-                  }
-                  title={
-                    <Space>
-                      <Text strong style={{ color: '#262626' }}>{item.project}</Text>
-                      <Badge
-                        status={item.notified ? 'success' : 'warning'}
-                        text={item.notified ? '已提醒' : '待提醒'}
-                      />
-                    </Space>
-                  }
-                  description={
-                    <Space>
-                      <CalendarOutlined style={{ color: '#8C8C8C' }} />
-                      <Text style={{ color: '#595959' }}>
-                        下次保养：{item.nextDate}
-                        {item.nextMileage && ` | 里程：${item.nextMileage}公里`}
-                      </Text>
-                    </Space>
-                  }
-                />
-              </List.Item>
+        <Row gutter={16} style={{ marginBottom: 16 }}>
+          <Col span={8}>
+            <Card style={{ borderColor: '#ff4d4f', borderWidth: 1 }}>
+              <Statistic
+                title="紧急"
+                value={urgentItems.length}
+                valueStyle={{ color: '#FF4D4F' }}
+              />
+            </Card>
+          </Col>
+          <Col span={8}>
+            <Card style={{ borderColor: '#faad14', borderWidth: 1 }}>
+              <Statistic
+                title="即将到期"
+                value={upcomingItems.length}
+                valueStyle={{ color: '#D48806' }}
+              />
+            </Card>
+          </Col>
+          <Col span={8}>
+            <Card style={{ borderColor: '#52c41a', borderWidth: 1 }}>
+              <Statistic
+                title="计划中"
+                value={plannedItems.length}
+                valueStyle={{ color: '#52C41A' }}
+              />
+            </Card>
+          </Col>
+        </Row>
+
+        {aiPlans.length > 0 ? (
+          <Space direction="vertical" size={12} style={{ width: '100%' }}>
+            {urgentItems.length > 0 && (
+              <Card
+                size="small"
+                title={
+                  <Space>
+                    <ExclamationCircleOutlined style={{ color: '#ff4d4f' }} />
+                    <Text strong style={{ color: '#ff4d4f' }}>紧急</Text>
+                  </Space>
+                }
+                style={{ borderColor: '#ff4d4f', borderWidth: 1, background: '#fff2f0' }}
+              >
+                {renderTimeline(urgentItems, 'red')}
+              </Card>
             )}
-          />
+
+            {upcomingItems.length > 0 && (
+              <Card
+                size="small"
+                title={
+                  <Space>
+                    <BellOutlined style={{ color: '#faad14' }} />
+                    <Text strong style={{ color: '#faad14' }}>即将到期</Text>
+                  </Space>
+                }
+                style={{ borderColor: '#faad14', borderWidth: 1, background: '#fffbe6' }}
+              >
+                {renderTimeline(upcomingItems, 'orange')}
+              </Card>
+            )}
+
+            {plannedItems.length > 0 && (
+              <Card
+                size="small"
+                title={
+                  <Space>
+                    <CalendarOutlined style={{ color: '#52c41a' }} />
+                    <Text strong style={{ color: '#52c41a' }}>计划中</Text>
+                  </Space>
+                }
+                style={{ borderColor: '#52c41a', borderWidth: 1, background: '#f6ffed' }}
+              >
+                {renderTimeline(plannedItems, 'green')}
+              </Card>
+            )}
+
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)} block>
+              手动添加提醒
+            </Button>
+          </Space>
         ) : (
           <Space direction="vertical" align="center" style={{ width: '100%', padding: '40px 0' }}>
-            <BellOutlined style={{ fontSize: 48, color: '#d9d9d9' }} />
-            <Text type="secondary">暂无保养提醒</Text>
-            <Button type="primary" onClick={() => setIsModalOpen(true)}>
-              添加第一条提醒
-            </Button>
+            <ThunderboltOutlined style={{ fontSize: 48, color: '#1677FF' }} />
+            <Text type="secondary">点击「重新生成」获取AI保养计划</Text>
           </Space>
         )}
       </Card>
@@ -300,7 +249,7 @@ const ReminderPage: React.FC<ReminderPageProps> = ({
         </Form>
       </Modal>
     </Space>
-  );
-};
+  )
+}
 
-export default ReminderPage;
+export default ReminderPage

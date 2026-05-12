@@ -1,48 +1,70 @@
-import React from 'react';
-import { Card, Row, Col, Space, Typography, Tag, Button, Statistic } from 'antd';
+import React from 'react'
+import {
+  Card, Row, Col, Space, Typography, Tag, Button, Statistic, List
+} from 'antd'
 import {
   FileTextOutlined,
   CameraOutlined,
   HistoryOutlined,
-  BellOutlined,
   CarOutlined,
   RightOutlined,
   ClockCircleOutlined,
-  EnvironmentOutlined
-} from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
-import { Vehicle, MaintenanceRecord } from '../types';
+  EnvironmentOutlined,
+  BellOutlined
+} from '@ant-design/icons'
+import { useNavigate } from 'react-router-dom'
+import { Vehicle, MaintenanceRecord, Reminder } from '../types'
 
-const { Title, Text } = Typography;
+const { Title, Text } = Typography
 
 interface HomePageProps {
-  currentVehicle: Vehicle;
-  vehicles: Vehicle[];
-  records: MaintenanceRecord[];
-  onVehicleChange: (vehicle: Vehicle) => void;
+  currentVehicle: Vehicle
+  vehicles: Vehicle[]
+  records: MaintenanceRecord[]
+  reminders: Reminder[]
+  onVehicleChange: (vehicle: Vehicle) => void
+  onAddReminder: (reminder: Reminder) => void
 }
 
-const HomePage: React.FC<HomePageProps> = ({ currentVehicle, vehicles, records, onVehicleChange }) => {
-  const navigate = useNavigate();
-  const vehicleRecords = records.filter(r => r.vehicleId === currentVehicle?._id);
-  const recentRecords = vehicleRecords.slice(0, 5);
-  const totalCost = vehicleRecords.reduce((sum, r) => sum + r.totalCost, 0);
+const HomePage: React.FC<HomePageProps> = ({
+  currentVehicle,
+  vehicles,
+  records,
+  reminders,
+  onVehicleChange,
+  onAddReminder
+}) => {
+  const navigate = useNavigate()
+  const vehicleRecords = records.filter(r => r.vehicleId === currentVehicle?._id)
+  const recentRecords = vehicleRecords.slice(0, 5)
+  const totalCost = vehicleRecords.reduce((sum, r) => sum + r.totalCost, 0)
+
+  // 过滤只显示半年内的保养提醒
+  const today = new Date()
+  const sixMonthsAgo = new Date(today)
+  sixMonthsAgo.setMonth(today.getMonth() - 6)
+  const vehicleReminders = reminders
+    .filter(r => r.vehicleId === currentVehicle?._id)
+    .filter(r => {
+      const reminderDate = new Date(r.nextDate)
+      return reminderDate >= sixMonthsAgo
+    })
+    .sort((a, b) => new Date(a.nextDate).getTime() - new Date(b.nextDate).getTime())
 
   const actionItems = [
     { icon: <FileTextOutlined />, title: '手动记录', path: '/manual', color: '#1677FF' },
     { icon: <CameraOutlined />, title: '拍照记录', path: '/photo', color: '#52C41A' },
-    { icon: <HistoryOutlined />, title: '履历查询', path: '/history', color: '#FAAD14' },
-    { icon: <BellOutlined />, title: '保养提醒', path: '/reminder', color: '#FF4D4F' }
-  ];
+    { icon: <HistoryOutlined />, title: '履历查询', path: '/history', color: '#FAAD14' }
+  ]
 
   const getRecordTypeColor = (type: string) => {
     switch (type) {
-      case '保养': return 'success';
-      case '维修': return 'warning';
-      case '更换配件': return 'processing';
-      default: return 'default';
+      case '保养': return 'success'
+      case '维修': return 'warning'
+      case '更换配件': return 'processing'
+      default: return 'default'
     }
-  };
+  }
 
   if (!currentVehicle) {
     return (
@@ -56,7 +78,7 @@ const HomePage: React.FC<HomePageProps> = ({ currentVehicle, vehicles, records, 
           </Button>
         </Space>
       </Card>
-    );
+    )
   }
 
   return (
@@ -119,7 +141,7 @@ const HomePage: React.FC<HomePageProps> = ({ currentVehicle, vehicles, records, 
       <Card title="快捷操作">
         <Row gutter={16}>
           {actionItems.map((item) => (
-            <Col span={6} key={item.path}>
+            <Col span={8} key={item.path}>
               <Button
                 type="default"
                 icon={item.icon}
@@ -139,6 +161,42 @@ const HomePage: React.FC<HomePageProps> = ({ currentVehicle, vehicles, records, 
         </Row>
       </Card>
 
+      {/* 保养提醒 */}
+      <Card
+        title={
+          <Space>
+            <BellOutlined style={{ color: '#D48806' }} />
+            <Text strong style={{ color: '#262626' }}>保养提醒</Text>
+          </Space>
+        }
+        extra={
+          <Button
+            type="link"
+            onClick={() => navigate('/reminder')}
+          >
+            查看详情
+          </Button>
+        }
+      >
+        {vehicleReminders.length > 0 ? (
+          <List
+            dataSource={vehicleReminders.slice(0, 5)}
+            renderItem={(item) => (
+              <List.Item>
+                <Space style={{ width: '100%' }}>
+                  <Text strong style={{ flex: 1 }}>{item.project}</Text>
+                  <Text type="secondary">{item.nextDate}</Text>
+                </Space>
+              </List.Item>
+            )}
+          />
+        ) : (
+          <Text type="secondary" style={{ display: 'block', textAlign: 'center', padding: '20px 0' }}>
+            暂无保养提醒
+          </Text>
+        )}
+      </Card>
+
       {/* 最近记录 */}
       <Card
         title="最近记录"
@@ -155,6 +213,8 @@ const HomePage: React.FC<HomePageProps> = ({ currentVehicle, vehicles, records, 
                 key={record._id}
                 size="small"
                 hoverable
+                onClick={() => navigate('/record-detail', { state: { recordId: record._id } })}
+                style={{ cursor: 'pointer' }}
               >
                 <Row justify="space-between" align="middle">
                   <Col flex="auto">
@@ -197,7 +257,7 @@ const HomePage: React.FC<HomePageProps> = ({ currentVehicle, vehicles, records, 
         )}
       </Card>
     </Space>
-  );
-};
+  )
+}
 
-export default HomePage;
+export default HomePage
