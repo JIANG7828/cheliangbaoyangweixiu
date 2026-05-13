@@ -11,18 +11,25 @@ import {
   Typography,
   message,
   Row,
-  Col
+  Col,
+  Modal,
+  InputNumber,
+  Spin,
+  Alert
 } from 'antd';
 import {
   PlusOutlined,
   DeleteOutlined,
   EnvironmentOutlined,
-  DollarOutlined
+  DollarOutlined,
+  DashboardOutlined,
+  RobotOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { Vehicle, MaintenanceRecord, MaintenanceProject } from '../types';
 import { COMMON_PROJECTS } from '../types';
+import { generateSuggestions } from '../services/ai';
 
 const { Title, Text } = Typography;
 
@@ -30,19 +37,82 @@ interface ManualRecordPageProps {
   currentVehicle: Vehicle;
   records: MaintenanceRecord[];
   onAddRecord: (record: MaintenanceRecord) => void;
+  onUpdateVehicle: (vehicle: Vehicle) => void;
 }
 
-const ManualRecordPage: React.FC<ManualRecordPageProps> = ({ currentVehicle, onAddRecord }) => {
+interface AISuggestion {
+  text: string;
+  type: 'info' | 'warning' | 'success';
+}
+
+const ManualRecordPage: React.FC<ManualRecordPageProps> = ({
+  currentVehicle,
+  onAddRecord,
+  onUpdateVehicle,
+  records
+}) => {
   const navigate = useNavigate();
   const [form] = Form.useForm();
   const [projects, setProjects] = useState<MaintenanceProject[]>([]);
   const [projectNameInput, setProjectNameInput] = useState('');
   const [projectCostInput, setProjectCostInput] = useState('');
+  const [mileageModalVisible, setMileageModalVisible] = useState(false);
+  const [mileageForm] = Form.useForm();
+  const [pendingRecord, setPendingRecord] = useState<MaintenanceRecord | null>(null);
+  const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
 
   const totalCost = useMemo(() =>
     projects.reduce((sum, p) => sum + (p.cost || 0), 0),
     [projects]
   );
+
+  // 调用 AI 生成保养建议
+  const callAIForSuggestions = useCallback(async (record: MaintenanceRecord, currentRecords: MaintenanceRecord[]) => {
+    setAiLoading(true);
+    try {
+      const suggestions = await generateSuggestions(
+        { projects: record.projects.map(p => p.name) },
+        currentRecords.map(r => ({ projects: r.projects, date: r.date }))
+      );
+      setAiSuggestions(suggestions);
+    } catch (error) {
+      console.error('AI 建议生成失败:', error);
+      setAiSuggestions([]);
+    } finally {
+      setAiLoading(false);
+    }
+  }, []);
+
+  const handleMileageConfirm = useCallback(() => {
+    mileageForm.validateFields().then(values => {
+      if (!pendingRecord) return;
+
+      // 更新车辆里程
+      const updatedVehicle: Vehicle = {
+        ...currentVehicle,
+        mileage: values.mileage
+      };
+      onUpdateVehicle(updatedVehicle);
+
+      // 保存本次记录
+      onAddRecord(pendingRecord);
+
+      message.success('保存成功');
+      setMileageModalVisible(false);
+      setTimeout(() => navigate('/'), 1000);
+    });
+  }, [mileageForm, pendingRecord, currentVehicle, onUpdateVehicle, onAddRecord, navigate]);
+
+  const handleMileageCancel = useCallback(() => {
+    if (!pendingRecord) return;
+
+    // 不更新里程，只保存记录
+    onAddRecord(pendingRecord);
+    message.success('保存成功');
+    setMileageModalVisible(false);
+    setTimeout(() => navigate('/'), 1000);
+  }, [pendingRecord, onAddRecord, navigate]);
 
   const projectOptions: string[] = COMMON_PROJECTS;
 
@@ -82,10 +152,16 @@ const ManualRecordPage: React.FC<ManualRecordPageProps> = ({ currentVehicle, onA
       recordType: values.recordType || '保养'
     };
 
-    onAddRecord(record);
-    message.success('保存成功');
-    setTimeout(() => navigate('/'), 1000);
-  }, [projects, totalCost, currentVehicle, onAddRecord, navigate]);
+    setPendingRecord(record);
+    mileageForm.setFieldsValue({
+      mileage: currentVehicle.mileage || undefined
+    });
+    setAiSuggestions([]);
+    setMileageModalVisible(true);
+
+    // 调用 AI 生成建议
+    callAIForSuggestions(record, records);
+  }, [projects, totalCost, currentVehicle, mileageForm, callAIForSuggestions, records]);
 
   if (!currentVehicle) {
     return (
@@ -111,7 +187,7 @@ const ManualRecordPage: React.FC<ManualRecordPageProps> = ({ currentVehicle, onA
             <Col span={12}>
               <Form.Item
                 name="date"
-                label="时间"
+                label="发生时间"
                 rules={[{ required: true, message: '请选择时间' }]}
               >
                 <DatePicker showTime style={{ width: '100%' }} />
@@ -241,6 +317,65 @@ const ManualRecordPage: React.FC<ManualRecordPageProps> = ({ currentVehicle, onA
           </Form.Item>
         </Form>
       </Card>
+
+      {/* 里程更新对话框 */}
+      <Modal
+        title={<Space><DashboardOutlined />完善车辆信息</Space>}
+        open={mileageModalVisible}
+        closable={false}
+        footer={[
+          <Button key="skip" onClick={handleMileageCancel}>稍后完善</Button>,
+          <Button key="confirm" type="primary" onClick={handleMileageConfirm}>确认保存</Button>
+        ]}
+        width={400}
+      >
+        <Form form={mileageForm} layout="vertical">
+          <Form.Item
+            name="mileage"
+            label="当前里程"
+            rules={[{ required: true, message: '请输入当前里程' }]}
+            extra="输入当前总行驶里程，帮助AI更准确预测保养周期"
+          >
+            <InputNumber
+              style={{ width: '100%' }}
+              min={0}
+              step={100}
+              placeholder="请输入里程数"
+              addonAfter="公里"
+            />
+          </Form.Item>
+        </Form>
+
+        {/* AI 保养建议区域 */}
+        <div style={{ marginTop: 24 }}>
+          <Space style={{ marginBottom: 12 }}>
+            <RobotOutlined style={{ color: '#1677FF' }} />
+            <Text strong>AI 保养建议</Text>
+          </Space>
+
+          {aiLoading ? (
+            <div style={{ textAlign: 'center', padding: '20px 0' }}>
+              <Spin tip="AI 分析中..." />
+            </div>
+          ) : aiSuggestions.length > 0 ? (
+            <Space direction="vertical" size={8} style={{ width: '100%' }}>
+              {aiSuggestions.map((suggestion, index) => (
+                <Alert
+                  key={index}
+                  message={suggestion.text}
+                  type={suggestion.type === 'warning' ? 'warning' : suggestion.type === 'success' ? 'success' : 'info'}
+                  showIcon
+                  style={{ borderRadius: 6 }}
+                />
+              ))}
+            </Space>
+          ) : (
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              根据您的保养记录，AI 将给出个性化建议
+            </Text>
+          )}
+        </div>
+      </Modal>
     </Space>
   );
 };

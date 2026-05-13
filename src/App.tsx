@@ -9,10 +9,14 @@ import {
   HistoryOutlined,
   BellOutlined,
   HomeOutlined,
+  RobotOutlined,
   UserOutlined,
-  LogoutOutlined
+  LogoutOutlined,
+  DropboxOutlined,
+  GoldOutlined
 } from '@ant-design/icons';
 import HomePage from './pages/Home';
+import CarAssistantPage from './pages/CarAssistant';
 import ManualRecordPage from './pages/ManualRecord';
 import PhotoRecordPage from './pages/PhotoRecord';
 import HistoryPage from './pages/History';
@@ -20,71 +24,197 @@ import ReminderPage from './pages/Reminder';
 import VehiclePage from './pages/Vehicle';
 import RecordDetailPage from './pages/RecordDetail';
 import LoginPage from './pages/Login';
-import { Vehicle, MaintenanceRecord, Reminder as ReminderType, AIPlan } from './types';
+import FuelRecordPage from './pages/FuelRecord';
+import OilPricePage from './pages/OilPrice';
+import { Vehicle, MaintenanceRecord, Reminder as ReminderType, AIPlan, FuelRecord, MileageCheckpoint } from './types';
 import { initialVehicles, initialRecords } from './data/mock';
 import { generateMaintenancePlan } from './services/ai';
 
 const { Header, Content } = Layout;
 
-const STORAGE_KEYS = {
-  user: 'user',
-  vehicles: 'vmr_vehicles',
-  records: 'vmr_records',
-  reminders: 'vmr_reminders',
-  currentVehicleId: 'vmr_currentVehicleId',
+// ==================== 存储工具 ====================
+
+const GLOBAL_KEYS = {
+  user: 'vmr_user',
+  registeredUsers: 'vmr_registered_users',
+  // 老全局 key（用于数据迁移）
+  oldVehicles: 'vmr_vehicles',
+  oldRecords: 'vmr_records',
+  oldReminders: 'vmr_reminders',
+  oldCurrentVehicleId: 'vmr_currentVehicleId',
+  oldFuelRecords: 'vmr_fuel_records',
+  oldCheckpoints: 'vmr_checkpoints',
 };
 
-function loadFromStorage<T>(key: string, fallback: T): T {
-  try {
-    const stored = localStorage.getItem(key);
-    return stored ? JSON.parse(stored) : fallback;
-  } catch {
-    return fallback;
-  }
-}
+// 用户隔离：每个用户独立存储空间
+const mkKey = (userName: string, suffix: string) => `vmr_${userName}_${suffix}`;
 
-function saveToStorage<T>(key: string, data: T): void {
+const loadRaw = (key: string): string | null => {
+  try { return localStorage.getItem(key); } catch { return null; }
+};
+const saveRaw = (key: string, data: unknown): void => {
+  try { localStorage.setItem(key, JSON.stringify(data)); } catch { /* ignore */ }
+};
+const loadOr = <T,>(key: string, fallback: T): T => {
+  const s = loadRaw(key);
+  if (s === null) return fallback;
   try {
-    localStorage.setItem(key, JSON.stringify(data));
-  } catch {
-    // Storage full or unavailable
-  }
-}
+    const parsed = JSON.parse(s);
+    // 防止双序列化（parsed 应与 fallback 类型一致，否则回退）
+    if (Array.isArray(fallback) && !Array.isArray(parsed)) return fallback;
+    if (!Array.isArray(fallback) && typeof fallback === 'object' && (parsed === null || typeof parsed !== 'object')) return fallback;
+    return parsed as T;
+  } catch { return fallback; }
+};
 
-interface UserInfo {
-  name: string;
-}
+// 首次登录：把老全局数据迁移到当前用户前缀下
+const migrateIfNeeded = (userName: string): void => {
+  const migratedFlag = loadRaw(mkKey(userName, '_migrated'));
+
+  // 判断是否需要迁移：从未迁移过，或已迁移但数据是字符串（双序列化坏数据）需要重新迁移
+  const needsMigration = migratedFlag === null ||
+    (() => {
+      const vRaw = loadRaw(mkKey(userName, 'vehicles'));
+      // 如果 vehicles 存的是字符串而非数组，说明是双序列化坏数据
+      return typeof vRaw === 'string' && !vRaw.startsWith('[');
+    })();
+
+  if (!needsMigration) return;
+
+  // 迁移车辆（先 parse，再通过 saveRaw.stringify 存储，避免二次序列化）
+  const oldVeh = loadRaw(GLOBAL_KEYS.oldVehicles);
+  try {
+    saveRaw(mkKey(userName, 'vehicles'), oldVeh ? JSON.parse(oldVeh) : initialVehicles);
+  } catch { saveRaw(mkKey(userName, 'vehicles'), initialVehicles); }
+
+  // 迁移记录
+  const oldRec = loadRaw(GLOBAL_KEYS.oldRecords);
+  try {
+    saveRaw(mkKey(userName, 'records'), oldRec ? JSON.parse(oldRec) : initialRecords);
+  } catch { saveRaw(mkKey(userName, 'records'), initialRecords); }
+
+  // 迁移当前车辆ID（字符串，直接存）
+  const oldVid = loadRaw(GLOBAL_KEYS.oldCurrentVehicleId);
+  if (oldVid !== null) saveRaw(mkKey(userName, 'currentVehicleId'), oldVid);
+
+  // 迁移油耗记录
+  const oldFuel = loadRaw(GLOBAL_KEYS.oldFuelRecords);
+  try { saveRaw(mkKey(userName, 'fuel_records'), oldFuel ? JSON.parse(oldFuel) : []); }
+  catch { saveRaw(mkKey(userName, 'fuel_records'), []); }
+
+  // 迁移保养节点
+  const oldCp = loadRaw(GLOBAL_KEYS.oldCheckpoints);
+  try { saveRaw(mkKey(userName, 'checkpoints'), oldCp ? JSON.parse(oldCp) : {}); }
+  catch { saveRaw(mkKey(userName, 'checkpoints'), {}); }
+
+  // 标记迁移完成
+  saveRaw(mkKey(userName, '_migrated'), true);
+};
+
+// ==================== AppLayout ====================
+
+interface UserInfo { name: string }
 
 const AppLayout: React.FC<{ user: UserInfo; onLogout: () => void }> = ({ user, onLogout }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { name: userName } = user;
 
-  // Clear stale reminders from localStorage (old 2024 dates)
-  const storedReminders = loadFromStorage<ReminderType[]>(STORAGE_KEYS.reminders, []);
-  const today = new Date();
-  const validReminders = storedReminders.filter(r => {
-    const reminderDate = new Date(r.nextDate);
-    return reminderDate >= today;
+  // 首次加载：数据迁移（一次性）
+  useEffect(() => {
+    migrateIfNeeded(userName);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 派生用户专属存储 key
+  const k = (suffix: string) => mkKey(userName, suffix);
+
+  // 状态初始化（读取当前用户的专属存储，并填充缺失字段的默认值）
+  const [vehicles, setVehicles] = useState<Vehicle[]>(
+    () => {
+      const loaded = loadOr<Vehicle[]>(k('vehicles'), initialVehicles);
+      return loaded.map(v => ({
+        ...v,
+        mileageInterval: v.mileageInterval || 10000,
+        fuelTankCapacity: v.fuelTankCapacity || 50,
+      }));
+    }
+  );
+  const [records, setRecords] = useState<MaintenanceRecord[]>(
+    () => loadOr(k('records'), initialRecords)
+  );
+  const [reminders, setReminders] = useState<ReminderType[]>(() => {
+    const raw = loadOr<ReminderType[]>(k('reminders'), []);
+    const today = new Date();
+    return raw.filter(r => new Date(r.nextDate) >= today);
   });
-  if (validReminders.length !== storedReminders.length) {
-    saveToStorage(STORAGE_KEYS.reminders, validReminders);
-  }
+  const [fuelRecords, setFuelRecords] = useState<FuelRecord[]>(
+    () => loadOr(k('fuel_records'), [])
+  );
+  const [checkpoints, setCheckpoints] = useState<Record<string, MileageCheckpoint[]>>(
+    () => loadOr(k('checkpoints'), {})
+  );
 
-  const [vehicles, setVehicles] = useState<Vehicle[]>(() => loadFromStorage(STORAGE_KEYS.vehicles, initialVehicles));
-  const [records, setRecords] = useState<MaintenanceRecord[]>(() => loadFromStorage(STORAGE_KEYS.records, initialRecords));
-  const [reminders, setReminders] = useState<ReminderType[]>(validReminders);
   const [aiPlans, setAiPlans] = useState<AIPlan[]>([]);
-  const currentVehicleIdRef = useRef<string>(loadFromStorage(STORAGE_KEYS.currentVehicleId, initialVehicles[0]._id));
+  const currentVehicleIdRef = useRef<string>(
+    loadOr(k('currentVehicleId'), vehicles[0]?._id ?? initialVehicles[0]._id)
+  );
 
   const currentVehicleId = currentVehicleIdRef.current;
   const currentVehicle = vehicles.find(v => v._id === currentVehicleId) || vehicles[0] || initialVehicles[0];
 
-  // 在记录更新时自动重新生成AI保养计划并推送到首页
+  // 持久化 helpers
+  const setVehiclesAndSave = (updater: Vehicle[] | ((p: Vehicle[]) => Vehicle[])) => {
+    setVehicles(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      saveRaw(k('vehicles'), next);
+      return next;
+    });
+  };
+
+  const setRecordsAndSave = (updater: MaintenanceRecord[] | ((p: MaintenanceRecord[]) => MaintenanceRecord[])) => {
+    setRecords(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      saveRaw(k('records'), next);
+      return next;
+    });
+  };
+
+  const setRemindersAndSave = (updater: ReminderType[] | ((p: ReminderType[]) => ReminderType[])) => {
+    setReminders(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      saveRaw(k('reminders'), next);
+      return next;
+    });
+  };
+
+  const setFuelRecordsAndSave = (updater: FuelRecord[] | ((p: FuelRecord[]) => FuelRecord[])) => {
+    setFuelRecords(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      saveRaw(k('fuel_records'), next);
+      return next;
+    });
+  };
+
+  const setCheckpointsAndSave = (updater: Record<string, MileageCheckpoint[]> | ((p: Record<string, MileageCheckpoint[]>) => Record<string, MileageCheckpoint[]>)) => {
+    setCheckpoints(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      saveRaw(k('checkpoints'), next);
+      return next;
+    });
+  };
+
+  const setCurrentVehicleAndSave = (vehicle: Vehicle) => {
+    currentVehicleIdRef.current = vehicle._id;
+    saveRaw(k('currentVehicleId'), vehicle._id);
+    setVehicles(prev => [...prev]);
+  };
+
+  // 自动生成 AI 保养计划
   const prevRecordsCount = useRef(0);
   const isGenerating = useRef(false);
 
   useEffect(() => {
-    // 首次加载或记录数量变化时自动重新生成
     if (isGenerating.current) return;
     if (records.length === prevRecordsCount.current && prevRecordsCount.current > 0) return;
 
@@ -102,18 +232,11 @@ const AppLayout: React.FC<{ user: UserInfo; onLogout: () => void }> = ({ user, o
           },
           records.filter(r => r.vehicleId === currentVehicle._id)
         );
-
         setAiPlans(plans);
-
-        const today = new Date();
-        const sixMonthsFromNow = new Date(today);
-        sixMonthsFromNow.setMonth(today.getMonth() + 6);
-
+        const sixMonthsFromNow = new Date();
+        sixMonthsFromNow.setMonth(sixMonthsFromNow.getMonth() + 6);
         const halfYearReminders: ReminderType[] = plans
-          .filter(p => {
-            const reminderDate = new Date(p.nextDate);
-            return reminderDate <= sixMonthsFromNow;
-          })
+          .filter(p => new Date(p.nextDate) <= sixMonthsFromNow)
           .map(p => ({
             _id: Date.now().toString() + Math.random(),
             vehicleId: currentVehicle._id,
@@ -122,10 +245,8 @@ const AppLayout: React.FC<{ user: UserInfo; onLogout: () => void }> = ({ user, o
             nextMileage: undefined,
             notified: false,
           }));
-
         if (halfYearReminders.length > 0) {
-          setReminders(halfYearReminders);
-          saveToStorage(STORAGE_KEYS.reminders, halfYearReminders);
+          setRemindersAndSave(halfYearReminders);
         }
       } catch (error) {
         console.error('AI生成失败:', error);
@@ -138,63 +259,14 @@ const AppLayout: React.FC<{ user: UserInfo; onLogout: () => void }> = ({ user, o
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [records, currentVehicle._id, currentVehicle.brand, currentVehicle.mileage, currentVehicle.model, currentVehicle.year]);
 
-  // Persist vehicles
-  const setVehiclesAndSave = (updater: Vehicle[] | ((prev: Vehicle[]) => Vehicle[])) => {
-    setVehicles(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      saveToStorage(STORAGE_KEYS.vehicles, next);
-      return next;
-    });
-  };
-
-  // Persist records
-  const setRecordsAndSave = (updater: MaintenanceRecord[] | ((prev: MaintenanceRecord[]) => MaintenanceRecord[])) => {
-    setRecords(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      saveToStorage(STORAGE_KEYS.records, next);
-      return next;
-    });
-  };
-
-  // Persist reminders
-  const setRemindersAndSave = (updater: ReminderType[] | ((prev: ReminderType[]) => ReminderType[])) => {
-    setReminders(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      saveToStorage(STORAGE_KEYS.reminders, next);
-      return next;
-    });
-  };
-
-  // Persist current vehicle
-  const setCurrentVehicleAndSave = (vehicle: Vehicle) => {
-    currentVehicleIdRef.current = vehicle._id;
-    saveToStorage(STORAGE_KEYS.currentVehicleId, vehicle._id);
-    // Force re-render by updating state
-    setVehicles(prev => [...prev]);
-  };
-
-  const menuItems = [
-    { key: '/', icon: <HomeOutlined />, label: '首页' },
-    { key: '/manual', icon: <FileTextOutlined />, label: '手动记录' },
-    { key: '/photo', icon: <CameraOutlined />, label: '拍照记录' },
-    { key: '/history', icon: <HistoryOutlined />, label: '履历查询' },
-    { key: '/reminder', icon: <BellOutlined />, label: '保养提醒' },
-    { key: '/vehicle', icon: <CarOutlined />, label: '车辆管理' }
-  ];
-
-  const handleDeleteRecord = (recordId: string) => {
+  const handleDeleteRecord = (recordId: string) =>
     setRecordsAndSave(prev => prev.filter(r => r._id !== recordId));
-  };
 
-  const handleUpdateRecord = (updatedRecord: MaintenanceRecord) => {
+  const handleUpdateRecord = (updatedRecord: MaintenanceRecord) =>
     setRecordsAndSave(prev => prev.map(r => r._id === updatedRecord._id ? updatedRecord : r));
-  };
 
   const handleUpdateVehicle = (updatedVehicle: Vehicle) => {
-    setVehiclesAndSave(prev => {
-      const next = prev.map(v => v._id === updatedVehicle._id ? updatedVehicle : v);
-      return next;
-    });
+    setVehiclesAndSave(prev => prev.map(v => v._id === updatedVehicle._id ? updatedVehicle : v));
     if (currentVehicleId === updatedVehicle._id) {
       setCurrentVehicleAndSave(updatedVehicle);
     }
@@ -205,20 +277,26 @@ const AppLayout: React.FC<{ user: UserInfo; onLogout: () => void }> = ({ user, o
       const filtered = prev.filter(v => v._id !== vehicleId);
       if (currentVehicleId === vehicleId && filtered.length > 0) {
         currentVehicleIdRef.current = filtered[0]._id;
-        saveToStorage(STORAGE_KEYS.currentVehicleId, filtered[0]._id);
-        setVehicles([...filtered]); // force re-render
+        saveRaw(k('currentVehicleId'), filtered[0]._id);
       }
       return filtered;
     });
   };
 
   const userMenuItems = [
-    {
-      key: 'logout',
-      icon: <LogoutOutlined />,
-      label: '退出登录',
-      onClick: onLogout,
-    },
+    { key: 'logout', icon: <LogoutOutlined />, label: '退出登录', onClick: onLogout },
+  ];
+
+  const menuItems = [
+    { key: '/', icon: <HomeOutlined />, label: '首页' },
+    { key: '/assistant', icon: <RobotOutlined />, label: '养车助理' },
+    { key: '/fuel', icon: <DropboxOutlined />, label: '油耗记录' },
+    { key: '/oilprice', icon: <GoldOutlined />, label: '油价查询' },
+    { key: '/manual', icon: <FileTextOutlined />, label: '手动记录' },
+    { key: '/photo', icon: <CameraOutlined />, label: '拍照记录' },
+    { key: '/history', icon: <HistoryOutlined />, label: '履历查询' },
+    { key: '/reminder', icon: <BellOutlined />, label: '保养提醒' },
+    { key: '/vehicle', icon: <CarOutlined />, label: '车辆管理' }
   ];
 
   return (
@@ -263,12 +341,8 @@ const AppLayout: React.FC<{ user: UserInfo; onLogout: () => void }> = ({ user, o
           lineHeight: '64px'
         }}>
           <div style={{
-            fontSize: 20,
-            fontWeight: 'bold',
-            color: '#1677FF',
-            marginRight: 48,
-            letterSpacing: '1px',
-            cursor: 'pointer'
+            fontSize: 20, fontWeight: 'bold', color: '#1677FF',
+            marginRight: 48, letterSpacing: '1px', cursor: 'pointer'
           }} onClick={() => navigate('/')}>
             车辆保养记录
           </div>
@@ -276,33 +350,22 @@ const AppLayout: React.FC<{ user: UserInfo; onLogout: () => void }> = ({ user, o
             theme="light"
             mode="horizontal"
             selectedKeys={
-              location.pathname === '/record-detail'
-                ? ['/history']
-                : [location.pathname]
+              location.pathname === '/record-detail' ? ['/history'] : [location.pathname]
             }
             items={menuItems}
             onClick={({ key }) => navigate(key)}
-            style={{
-              flex: 1,
-              borderBottom: 'none',
-              fontSize: 15,
-              fontWeight: 500
-            }}
+            style={{ flex: 1, borderBottom: 'none', fontSize: 15, fontWeight: 500 }}
           />
           <Space style={{ marginLeft: 24 }}>
             <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
               <Space style={{ cursor: 'pointer' }}>
                 <Avatar icon={<UserOutlined />} />
-                <span style={{ color: '#262626' }}>{user.name}</span>
+                <span style={{ color: '#262626' }}>{userName}</span>
               </Space>
             </Dropdown>
           </Space>
         </Header>
-        <Content style={{
-          background: '#EBF5FB',
-          padding: '24px 24px 48px',
-          minHeight: 'calc(100vh - 64px)'
-        }}>
+        <Content style={{ background: '#EBF5FB', padding: '24px 24px 48px', minHeight: 'calc(100vh - 64px)' }}>
           <div style={{ maxWidth: 1200, margin: '0 auto' }}>
             <Routes>
               <Route path="/" element={<HomePage
@@ -310,24 +373,42 @@ const AppLayout: React.FC<{ user: UserInfo; onLogout: () => void }> = ({ user, o
                 vehicles={vehicles}
                 records={records}
                 reminders={reminders}
+                fuelRecords={fuelRecords}
+                checkpoints={checkpoints[currentVehicle._id] || []}
                 onVehicleChange={setCurrentVehicleAndSave}
-                onAddReminder={(reminder) => setRemindersAndSave(prev => [...prev, reminder])}
+                onAddReminder={(r) => setRemindersAndSave(prev => [...prev, r])}
+                onFuelRecordsChange={setFuelRecordsAndSave}
+                onCheckpointsChange={(cp) => setCheckpointsAndSave(prev => ({ ...prev, [currentVehicle._id]: cp }))}
               />} />
               <Route path="/manual" element={<ManualRecordPage
                 currentVehicle={currentVehicle}
                 records={records}
-                onAddRecord={(record) => setRecordsAndSave(prev => [record, ...prev])}
+                onAddRecord={(r) => setRecordsAndSave(prev => [r, ...prev])}
+                onUpdateVehicle={(v) => setVehiclesAndSave(prev => prev.map(x => x._id === v._id ? v : x))}
               />} />
               <Route path="/photo" element={<PhotoRecordPage
                 currentVehicle={currentVehicle}
                 records={records}
-                onAddRecord={(record) => setRecordsAndSave(prev => [record, ...prev])}
+                onAddRecord={(r) => setRecordsAndSave(prev => [r, ...prev])}
+                onUpdateVehicle={(v) => setVehiclesAndSave(prev => prev.map(x => x._id === v._id ? v : x))}
               />} />
               <Route path="/history" element={<HistoryPage
                 records={records}
                 currentVehicle={currentVehicle}
                 onDeleteRecord={handleDeleteRecord}
               />} />
+              <Route path="/assistant" element={<CarAssistantPage
+                currentVehicle={currentVehicle}
+                records={records}
+                fuelRecords={fuelRecords}
+                checkpoints={checkpoints[currentVehicle._id] || []}
+              />} />
+              <Route path="/fuel" element={<FuelRecordPage
+                currentVehicle={currentVehicle}
+                fuelRecords={fuelRecords}
+                onFuelRecordsChange={setFuelRecordsAndSave}
+              />} />
+              <Route path="/oilprice" element={<OilPricePage />} />
               <Route path="/record-detail" element={<RecordDetailPage
                 records={records}
                 vehicles={vehicles}
@@ -338,7 +419,7 @@ const AppLayout: React.FC<{ user: UserInfo; onLogout: () => void }> = ({ user, o
                 currentVehicle={currentVehicle}
                 records={records}
                 aiPlans={aiPlans}
-                onAddReminder={(reminder) => setRemindersAndSave(prev => [...prev, reminder])}
+                onAddReminder={(r) => setRemindersAndSave(prev => [...prev, r])}
               />} />
               <Route path="/vehicle" element={<VehiclePage
                 vehicles={vehicles}
@@ -356,19 +437,21 @@ const AppLayout: React.FC<{ user: UserInfo; onLogout: () => void }> = ({ user, o
   );
 };
 
+// ==================== App 入口 ====================
+
 const App: React.FC = () => {
   const [user, setUser] = useState<UserInfo | null>(() => {
-    const stored = localStorage.getItem(STORAGE_KEYS.user);
-    return stored ? JSON.parse(stored) : null;
+    const s = loadRaw(GLOBAL_KEYS.user);
+    return s ? (() => { try { return JSON.parse(s) as UserInfo; } catch { return null; } })() : null;
   });
 
   const handleLogin = (newUser: UserInfo) => {
-    saveToStorage(STORAGE_KEYS.user, newUser);
+    saveRaw(GLOBAL_KEYS.user, newUser);
     setUser(newUser);
   };
 
   const handleLogout = () => {
-    localStorage.removeItem(STORAGE_KEYS.user);
+    localStorage.removeItem(GLOBAL_KEYS.user);
     setUser(null);
   };
 

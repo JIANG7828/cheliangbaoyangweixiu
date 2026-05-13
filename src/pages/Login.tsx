@@ -9,13 +9,16 @@ import {
   Tabs,
   Divider,
   QRCode,
-  message
+  message,
+  Modal,
+  Alert
 } from 'antd'
 import {
   UserOutlined,
   LockOutlined,
   CarOutlined,
-  WechatOutlined
+  WechatOutlined,
+  QuestionCircleOutlined
 } from '@ant-design/icons'
 
 const { Text, Title } = Typography
@@ -26,6 +29,12 @@ interface LoginPageProps {
 
 const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [loading, setLoading] = useState(false)
+  const [forgotModalOpen, setForgotModalOpen] = useState(false)
+  const [forgotStep, setForgotStep] = useState<'input' | 'setPassword' | 'success'>('input')
+  const [resetUsername, setResetUsername] = useState('')
+  const [resetPassword, setResetPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
 
   const getRegisteredUsers = (): Array<{ username: string; password: string }> => {
     try {
@@ -101,6 +110,53 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     message.info('微信扫码功能需要后端支持，请联系管理员配置')
   }
 
+  const handleForgotPassword = () => {
+    setForgotModalOpen(true)
+    setForgotStep('input')
+    setResetUsername('')
+    setResetPassword('')
+  }
+
+  const handleFindPassword = () => {
+    const users = getRegisteredUsers()
+    const user = users.find(u => u.username === resetUsername)
+
+    if (!user) {
+      message.error('未找到该用户名，请确认输入是否正确')
+      return
+    }
+
+    // 进入设置新密码步骤
+    setForgotStep('setPassword')
+  }
+
+  const handleSetNewPassword = () => {
+    if (!newPassword) {
+      message.error('请输入新密码')
+      return
+    }
+
+    if (newPassword.length < 6) {
+      message.error('密码长度不能少于6位')
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      message.error('两次输入的密码不一致')
+      return
+    }
+
+    // 更新密码
+    const users = getRegisteredUsers()
+    const updatedUsers = users.map(u =>
+      u.username === resetUsername ? { ...u, password: newPassword } : u
+    )
+    saveRegisteredUsers(updatedUsers)
+
+    setResetPassword(newPassword)
+    setForgotStep('success')
+  }
+
   const tabItems = [
     {
       key: 'login',
@@ -138,6 +194,12 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
               placeholder="请输入密码"
               size="large"
             />
+          </Form.Item>
+
+          <Form.Item style={{ marginBottom: 8 }}>
+            <Button type="link" onClick={handleForgotPassword} style={{ padding: 0, height: 'auto' }}>
+              <QuestionCircleOutlined /> 忘记密码？
+            </Button>
           </Form.Item>
 
           <Form.Item style={{ marginBottom: 0 }}>
@@ -256,39 +318,118 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   ]
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: '24px'
-    }}>
-      <Card
-        style={{
-          width: 420,
-          borderRadius: 12,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.15)'
-        }}
-        bodyStyle={{ padding: '24px' }}
+    <>
+      <div style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: '24px'
+      }}>
+        <Card
+          style={{
+            width: 420,
+            borderRadius: 12,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.15)'
+          }}
+          bodyStyle={{ padding: '24px' }}
+        >
+          <Space direction="vertical" size={24} style={{ width: '100%', textAlign: 'center' }}>
+            <div>
+              <CarOutlined style={{ fontSize: 48, color: '#1677FF', marginBottom: 8 }} />
+              <Title level={3} style={{ margin: 0, color: '#262626' }}>车辆保养维修记录</Title>
+              <Text type="secondary">欢迎使用，请先登录或注册</Text>
+            </div>
+
+            <Tabs items={tabItems} centered />
+
+            <Divider style={{ margin: '12px 0' }} />
+
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              首次使用？点击「注册账号」或「微信注册」创建新账户
+            </Text>
+          </Space>
+        </Card>
+      </div>
+
+      {/* 忘记密码模态框 */}
+      <Modal
+        title="找回密码"
+        open={forgotModalOpen}
+        onCancel={() => setForgotModalOpen(false)}
+        footer={null}
+        width={400}
       >
-        <Space direction="vertical" size={24} style={{ width: '100%', textAlign: 'center' }}>
-          <div>
-            <CarOutlined style={{ fontSize: 48, color: '#1677FF', marginBottom: 8 }} />
-            <Title level={3} style={{ margin: 0, color: '#262626' }}>车辆保养维修记录</Title>
-            <Text type="secondary">欢迎使用，请先登录或注册</Text>
-          </div>
+        <Space direction="vertical" size={16} style={{ width: '100%' }}>
+          {forgotStep === 'input' && (
+            <>
+              <Text>请输入您注册的用户名，系统将为您重置密码</Text>
+              <Input
+                prefix={<UserOutlined />}
+                placeholder="请输入用户名"
+                value={resetUsername}
+                onChange={(e) => setResetUsername(e.target.value)}
+                size="large"
+              />
+              <Button type="primary" block size="large" onClick={handleFindPassword}>
+                找回密码
+              </Button>
+            </>
+          )}
 
-          <Tabs items={tabItems} centered />
+          {forgotStep === 'setPassword' && (
+            <>
+              <Text>请为账号「{resetUsername}」设置新密码</Text>
+              <Input.Password
+                prefix={<LockOutlined />}
+                placeholder="请输入新密码（至少6位）"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                size="large"
+              />
+              <Input.Password
+                prefix={<LockOutlined />}
+                placeholder="请再次输入新密码"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                size="large"
+              />
+              <Button type="primary" block size="large" onClick={handleSetNewPassword}>
+                确认修改
+              </Button>
+              <Button type="link" block onClick={() => setForgotStep('input')}>
+                返回上一步
+              </Button>
+            </>
+          )}
 
-          <Divider style={{ margin: '12px 0' }} />
-
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            首次使用？点击「注册账号」或「微信注册」创建新账户
-          </Text>
+          {forgotStep === 'success' && (
+            <>
+              <Alert
+                message="密码修改成功"
+                description={
+                  <Space direction="vertical">
+                    <Text>您的新密码已设置完成</Text>
+                    <Text type="secondary">请使用新密码登录</Text>
+                  </Space>
+                }
+                type="success"
+                showIcon
+              />
+              <Button type="primary" block onClick={() => {
+                setForgotModalOpen(false)
+                setForgotStep('input')
+                setNewPassword('')
+                setConfirmPassword('')
+              }}>
+                知道了
+              </Button>
+            </>
+          )}
         </Space>
-      </Card>
-    </div>
+      </Modal>
+    </>
   )
 }
 

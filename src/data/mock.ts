@@ -2,8 +2,8 @@ import { Vehicle, MaintenanceRecord, Reminder, AIPlan } from '../types';
 
 // 初始车辆数据
 export const initialVehicles: Vehicle[] = [
-  { _id: '1', plateNumber: '京A·88888', vehicleModel: '丰田凯美瑞 2020款', vin: 'LHG12345678901234', purchaseDate: '2020-05-15' },
-  { _id: '2', plateNumber: '京B·66666', vehicleModel: '本田雅阁 2019款' }
+  { _id: '1', plateNumber: '京A·88888', vehicleModel: '丰田凯美瑞 2020款', vin: 'LHG12345678901234', purchaseDate: '2020-05-15', fuelTankCapacity: 60, mileageInterval: 10000 },
+  { _id: '2', plateNumber: '京B·66666', vehicleModel: '本田雅阁 2019款', fuelTankCapacity: 56, mileageInterval: 5000 }
 ];
 
 // 初始记录数据

@@ -3,6 +3,7 @@ import {
   Card,
   Form,
   Input,
+  InputNumber,
   Button,
   DatePicker,
   Space,
@@ -13,7 +14,8 @@ import {
   Row,
   Col,
   Badge,
-  Popconfirm
+  Popconfirm,
+  Radio
 } from 'antd';
 import {
   PlusOutlined,
@@ -59,7 +61,9 @@ const VehiclePage: React.FC<VehiclePageProps> = ({
       plateNumber: vehicle.plateNumber,
       vehicleModel: vehicle.vehicleModel,
       vin: vehicle.vin || undefined,
-      purchaseDate: vehicle.purchaseDate ? dayjs(vehicle.purchaseDate) : undefined
+      purchaseDate: vehicle.purchaseDate ? dayjs(vehicle.purchaseDate) : undefined,
+      fuelTankCapacity: vehicle.fuelTankCapacity || undefined,
+      mileageInterval: vehicle.mileageInterval || 10000,
     });
     setIsModalOpen(true);
   };
@@ -81,6 +85,8 @@ const VehiclePage: React.FC<VehiclePageProps> = ({
       model,
       year: yearMatch ? parseInt(yearMatch[0]) : undefined,
       mileage: editingVehicle?.mileage || undefined,
+      fuelTankCapacity: values.fuelTankCapacity || undefined,
+      mileageInterval: values.mileageInterval || 10000,
     };
 
     if (editingVehicle) {
@@ -230,8 +236,40 @@ const VehiclePage: React.FC<VehiclePageProps> = ({
             <Input placeholder="17位VIN码" maxLength={17} />
           </Form.Item>
 
-          <Form.Item name="purchaseDate" label="购买日期（可选）">
+          <Form.Item
+            name="purchaseDate"
+            label="购买日期"
+            rules={[{ required: true, message: '请选择购买日期' }]}
+          >
             <DatePicker style={{ width: '100%' }} />
+          </Form.Item>
+
+          <Form.Item
+            name="fuelTankCapacity"
+            label="油箱容积"
+            rules={[{ required: true, message: '请输入油箱容积' }]}
+            extra="用于 AI 分析加油量是否合理、估算续航里程等"
+          >
+            <InputNumber
+              style={{ width: '100%' }}
+              placeholder="例如：50"
+              min={10}
+              max={200}
+              addonAfter="升"
+              precision={0}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="mileageInterval"
+            label="保养间隔"
+            rules={[{ required: true, message: '请选择保养间隔' }]}
+            extra="常规保养里程间隔，决定保养周期追踪的节点间距"
+          >
+            <Radio.Group optionType="button" buttonStyle="solid">
+              <Radio.Button value={5000}>5000 km</Radio.Button>
+              <Radio.Button value={10000}>10000 km</Radio.Button>
+            </Radio.Group>
           </Form.Item>
 
           <Form.Item>

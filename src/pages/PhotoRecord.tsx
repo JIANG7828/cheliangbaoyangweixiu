@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import {
   Card,
   Form,
@@ -14,7 +14,9 @@ import {
   Tag,
   Modal,
   Upload,
-  Image
+  Image,
+  Spin,
+  InputNumber
 } from 'antd';
 import {
   PlusOutlined,
@@ -23,6 +25,7 @@ import {
   DollarOutlined,
   RobotOutlined,
   CheckCircleOutlined,
+  DashboardOutlined,
   InboxOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
@@ -37,9 +40,20 @@ interface PhotoRecordPageProps {
   currentVehicle: Vehicle;
   records: MaintenanceRecord[];
   onAddRecord: (record: MaintenanceRecord) => void;
+  onUpdateVehicle: (vehicle: Vehicle) => void;
 }
 
-const PhotoRecordPage: React.FC<PhotoRecordPageProps> = ({ currentVehicle, records, onAddRecord }) => {
+interface AISuggestion {
+  text: string;
+  type: 'info' | 'warning' | 'success';
+}
+
+const PhotoRecordPage: React.FC<PhotoRecordPageProps> = ({
+  currentVehicle,
+  records,
+  onAddRecord,
+  onUpdateVehicle
+}) => {
   const navigate = useNavigate();
   const [form] = Form.useForm();
   const [photoUploaded, setPhotoUploaded] = useState(false);
@@ -47,25 +61,33 @@ const PhotoRecordPage: React.FC<PhotoRecordPageProps> = ({ currentVehicle, recor
   const [projects, setProjects] = useState<MaintenanceProject[]>([]);
   const [projectNameInput, setProjectNameInput] = useState('');
   const [projectCostInput, setProjectCostInput] = useState('');
-  const [aiSuggestions, setAiSuggestions] = useState<AIBehaviorSuggestion[]>([]);
+  const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[]>([]);
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [receiptDesc, setReceiptDesc] = useState('');
   const [showManualInput, setShowManualInput] = useState(false);
   const [previewImage, setPreviewImage] = useState<string>('');
+
+  // 里程对话框
+  const [mileageModalVisible, setMileageModalVisible] = useState(false);
+  const [mileageForm] = Form.useForm();
+  const [pendingRecord, setPendingRecord] = useState<MaintenanceRecord | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const totalCost = useMemo(() =>
     projects.reduce((sum, p) => sum + (p.cost || 0), 0),
     [projects]
   );
 
-  const handleImageRecognize = async (file: File) => {
+  const handleImageRecognize = useCallback(async (file: File) => {
     setRecognizing(true);
     try {
       const base64 = await imageToBase64(file);
       setPreviewImage(base64);
-      
+
       const result: AIOCRResult = await recognizeReceipt(base64, true);
-      
+
       setProjects(result.projects);
       form.setFieldsValue({
         date: result.date ? dayjs(result.date) : dayjs(),
@@ -86,7 +108,25 @@ const PhotoRecordPage: React.FC<PhotoRecordPageProps> = ({ currentVehicle, recor
     } finally {
       setRecognizing(false);
     }
-  };
+  }, [records, currentVehicle._id]);
+
+  // 拍照处理
+  const handleCameraCapture = useCallback(() => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  }, []);
+
+  const handleCameraFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      await handleImageRecognize(file);
+    }
+    // 清空 input 以便重复选择同一文件
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, [handleImageRecognize]);
 
   const uploadProps: UploadProps = {
     name: 'file',
@@ -94,10 +134,14 @@ const PhotoRecordPage: React.FC<PhotoRecordPageProps> = ({ currentVehicle, recor
     fileList,
     maxCount: 1,
     accept: 'image/*',
-    customRequest: ({ file, onSuccess, onError }) => {
-      handleImageRecognize(file as File)
-        .then(() => onSuccess?.('ok'))
-        .catch(err => onError?.(err));
+    customRequest: async ({ file, onSuccess, onError }) => {
+      try {
+        await handleImageRecognize(file as File);
+        // 等待识别完成后再通知 Upload 组件成功
+        onSuccess?.('ok');
+      } catch (err) {
+        onError?.(err as Error);
+      }
     },
     onChange: (info) => {
       setFileList(info.fileList);
@@ -117,7 +161,7 @@ const PhotoRecordPage: React.FC<PhotoRecordPageProps> = ({ currentVehicle, recor
     setRecognizing(true);
     try {
       const result: AIOCRResult = await recognizeReceipt(receiptDesc, false);
-      
+
       setProjects(result.projects);
       form.setFieldsValue({
         date: result.date ? dayjs(result.date) : dayjs(),
@@ -159,7 +203,24 @@ const PhotoRecordPage: React.FC<PhotoRecordPageProps> = ({ currentVehicle, recor
     setProjects(projects.filter((_, i) => i !== index));
   };
 
-  const onFinish = (values: any) => {
+  // 调用 AI 生成建议
+  const callAIForSuggestions = useCallback(async (record: MaintenanceRecord, currentRecords: MaintenanceRecord[]) => {
+    setAiLoading(true);
+    try {
+      const suggestions = await generateSuggestions(
+        { projects: record.projects.map(p => p.name) },
+        currentRecords.map(r => ({ projects: r.projects, date: r.date }))
+      );
+      setAiSuggestions(suggestions);
+    } catch (error) {
+      console.error('AI 建议生成失败:', error);
+      setAiSuggestions([]);
+    } finally {
+      setAiLoading(false);
+    }
+  }, []);
+
+  const onFinish = useCallback((values: any) => {
     if (projects.length === 0) {
       message.warning('请至少添加一个项目');
       return;
@@ -176,10 +237,46 @@ const PhotoRecordPage: React.FC<PhotoRecordPageProps> = ({ currentVehicle, recor
       recordType: '保养'
     };
 
-    onAddRecord(record);
+    setPendingRecord(record);
+    mileageForm.setFieldsValue({
+      mileage: currentVehicle.mileage || undefined
+    });
+    setAiSuggestions([]);
+    setMileageModalVisible(true);
+
+    // 调用 AI 生成建议
+    callAIForSuggestions(record, records);
+  }, [projects, totalCost, currentVehicle, mileageForm, callAIForSuggestions, records]);
+
+  const handleMileageConfirm = useCallback(() => {
+    mileageForm.validateFields().then(values => {
+      if (!pendingRecord) return;
+
+      // 更新车辆里程
+      const updatedVehicle: Vehicle = {
+        ...currentVehicle,
+        mileage: values.mileage
+      };
+      onUpdateVehicle(updatedVehicle);
+
+      // 保存本次记录
+      onAddRecord(pendingRecord);
+
+      message.success('保存成功');
+      setMileageModalVisible(false);
+      setTimeout(() => navigate('/'), 1000);
+    });
+  }, [mileageForm, pendingRecord, currentVehicle, onUpdateVehicle, onAddRecord, navigate]);
+
+  const handleMileageCancel = useCallback(() => {
+    if (!pendingRecord) return;
+
+    // 不更新里程，只保存记录
+    onAddRecord(pendingRecord);
     message.success('保存成功');
+    setMileageModalVisible(false);
     setTimeout(() => navigate('/'), 1000);
-  };
+  }, [pendingRecord, onAddRecord, navigate]);
 
   if (!currentVehicle) {
     return <Card><Text type="secondary">请先添加车辆</Text></Card>;
@@ -193,13 +290,40 @@ const PhotoRecordPage: React.FC<PhotoRecordPageProps> = ({ currentVehicle, recor
             <CameraOutlined style={{ fontSize: 56, color: '#1677FF', marginBottom: 12 }} />
             <Title level={4} style={{ marginBottom: 4, color: '#262626' }}>AI 智能识别保养单据</Title>
             <Text type="secondary" style={{ marginBottom: 20 }}>拍照或上传单据，AI 自动提取关键信息</Text>
-            
+
             <Space direction="vertical" size={16} style={{ width: '100%', maxWidth: 500 }}>
+              {/* 隐藏的文件输入框用于拍照 */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleCameraFileChange}
+                style={{ display: 'none' }}
+              />
+
               {previewImage && (
                 <div style={{ marginBottom: 12 }}>
                   <Image src={previewImage} alt="Preview" style={{ maxWidth: '100%', maxHeight: 200 }} />
                 </div>
               )}
+
+              {/* 拍照按钮 */}
+              <Button
+                type="primary"
+                icon={<CameraOutlined />}
+                onClick={handleCameraCapture}
+                size="large"
+                style={{ height: 64, fontSize: 16 }}
+                block
+                loading={recognizing}
+              >
+                拍照识别
+              </Button>
+
+              <Text type="secondary" style={{ display: 'block', textAlign: 'center' }}>或</Text>
+
+              {/* 上传区域 */}
               <Upload.Dragger {...uploadProps}>
                 <p className="ant-upload-drag-icon">
                   <InboxOutlined style={{ color: '#1677FF', fontSize: 48 }} />
@@ -207,6 +331,7 @@ const PhotoRecordPage: React.FC<PhotoRecordPageProps> = ({ currentVehicle, recor
                 <p className="ant-upload-text">点击或拖拽上传保养单据图片</p>
                 <p className="ant-upload-hint">支持 JPG、PNG 格式，AI 将自动识别内容</p>
               </Upload.Dragger>
+
               <Button
                 type="link"
                 onClick={() => setShowManualInput(true)}
@@ -235,7 +360,7 @@ const PhotoRecordPage: React.FC<PhotoRecordPageProps> = ({ currentVehicle, recor
           <Form form={form} layout="vertical" onFinish={onFinish}>
             <Row gutter={16}>
               <Col span={12}>
-                <Form.Item name="date" label="时间">
+                <Form.Item name="date" label="发生时间">
                   <DatePicker showTime style={{ width: '100%' }} />
                 </Form.Item>
               </Col>
@@ -335,21 +460,6 @@ const PhotoRecordPage: React.FC<PhotoRecordPageProps> = ({ currentVehicle, recor
               <Input placeholder="识别的维修人员" />
             </Form.Item>
 
-            {aiSuggestions.length > 0 && (
-              <Form.Item label="AI 智能建议">
-                <Space direction="vertical" size={8} style={{ width: '100%' }}>
-                  {aiSuggestions.map((suggestion, index) => (
-                    <Alert
-                      key={index}
-                      message={suggestion.text}
-                      type={suggestion.type === 'warning' ? 'warning' : 'info'}
-                      showIcon
-                    />
-                  ))}
-                </Space>
-              </Form.Item>
-            )}
-
             <Form.Item>
               <Button type="primary" htmlType="submit" block size="large">
                 保存记录
@@ -358,6 +468,65 @@ const PhotoRecordPage: React.FC<PhotoRecordPageProps> = ({ currentVehicle, recor
           </Form>
         </Card>
       )}
+
+      {/* 里程更新对话框 */}
+      <Modal
+        title={<Space><DashboardOutlined />完善车辆信息</Space>}
+        open={mileageModalVisible}
+        closable={false}
+        footer={[
+          <Button key="skip" onClick={handleMileageCancel}>稍后完善</Button>,
+          <Button key="confirm" type="primary" onClick={handleMileageConfirm}>确认保存</Button>
+        ]}
+        width={400}
+      >
+        <Form form={mileageForm} layout="vertical">
+          <Form.Item
+            name="mileage"
+            label="当前里程"
+            rules={[{ required: true, message: '请输入当前里程' }]}
+            extra="输入当前总行驶里程，帮助AI更准确预测保养周期"
+          >
+            <InputNumber
+              style={{ width: '100%' }}
+              min={0}
+              step={100}
+              placeholder="请输入里程数"
+              addonAfter="公里"
+            />
+          </Form.Item>
+        </Form>
+
+        {/* AI 保养建议区域 */}
+        <div style={{ marginTop: 24 }}>
+          <Space style={{ marginBottom: 12 }}>
+            <RobotOutlined style={{ color: '#1677FF' }} />
+            <Text strong>AI 保养建议</Text>
+          </Space>
+
+          {aiLoading ? (
+            <div style={{ textAlign: 'center', padding: '20px 0' }}>
+              <Spin tip="AI 分析中..." />
+            </div>
+          ) : aiSuggestions.length > 0 ? (
+            <Space direction="vertical" size={8} style={{ width: '100%' }}>
+              {aiSuggestions.map((suggestion, index) => (
+                <Alert
+                  key={index}
+                  message={suggestion.text}
+                  type={suggestion.type === 'warning' ? 'warning' : suggestion.type === 'success' ? 'success' : 'info'}
+                  showIcon
+                  style={{ borderRadius: 6 }}
+                />
+              ))}
+            </Space>
+          ) : (
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              根据您的保养记录，AI 将给出个性化建议
+            </Text>
+          )}
+        </div>
+      </Modal>
 
       <Modal
         title="描述保养单据内容"

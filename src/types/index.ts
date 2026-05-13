@@ -10,6 +10,10 @@ export interface Vehicle {
   model?: string;
   year?: number;
   mileage?: number;
+  // 常规保养里程间隔（单位：公里）
+  mileageInterval?: number;
+  // 油箱容积（单位：升）
+  fuelTankCapacity?: number;
 }
 
 // 保养项目类型
@@ -39,6 +43,44 @@ export interface Reminder {
   nextDate: string;
   nextMileage?: number;
   notified: boolean;
+}
+
+// 油耗记录类型
+export interface FuelRecord {
+  _id: string;
+  vehicleId: string;
+  date: string; // 加油日期
+  mileage: number; // 当前里程（公里）
+  fuelAmount: number; // 加油量（升）
+  price: number; // 单价（元/升）
+  totalCost: number; // 总金额
+  fullTank: boolean; // 是否加满
+  location?: string; // 加油站
+  notes?: string; // 备注
+}
+
+// 油价数据
+export interface OilPriceData {
+  province: string;
+  city?: string;
+  district?: string;
+  date: string;
+  prices: {
+    type: string; // 油品类型：92#、95#、98#、0#
+    price: number; // 单价
+    unit: string; // 单位：元/升
+  }[];
+  source: string; // 数据来源
+  updatedAt: string; // 更新时间
+}
+
+// 保养周期节点追踪
+export interface MileageCheckpoint {
+  mileage: number;      // 里程节点（如 5000, 10000）
+  completed: boolean;   // 是否已完成保养
+  date?: string;        // 完成日期
+  projects?: string[];  // 已做的项目
+  notes?: string;       // 备注
 }
 
 // AI保养计划
