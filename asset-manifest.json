@@ -1,0 +1,15 @@
+{
+  "files": {
+    "main.css": "/cheliangbaoyangweixiu/static/css/main.b5e1fc51.css",
+    "main.js": "/cheliangbaoyangweixiu/static/js/main.c366b783.js",
+    "static/js/453.486bb8a0.chunk.js": "/cheliangbaoyangweixiu/static/js/453.486bb8a0.chunk.js",
+    "index.html": "/cheliangbaoyangweixiu/index.html",
+    "main.b5e1fc51.css.map": "/cheliangbaoyangweixiu/static/css/main.b5e1fc51.css.map",
+    "main.c366b783.js.map": "/cheliangbaoyangweixiu/static/js/main.c366b783.js.map",
+    "453.486bb8a0.chunk.js.map": "/cheliangbaoyangweixiu/static/js/453.486bb8a0.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.b5e1fc51.css",
+    "static/js/main.c366b783.js"
+  ]
+}
