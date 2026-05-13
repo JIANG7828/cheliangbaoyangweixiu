@@ -1,46 +1,56 @@
-# Getting Started with Create React App
+# 车辆保养维修记录系统
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+基于 React + Ant Design 的车辆保养管理平台，支持保养记录、油耗统计、油价查询、AI 养车助理等功能。
 
-## Available Scripts
+## 功能特性
 
-In the project directory, you can run:
+- **车辆管理**：登记车辆信息，设置保养间隔（5000/10000 km）
+- **保养记录**：手动记录、拍照记录，支持查看历史
+- **保养周期追踪**：按里程节点追踪保养状态，自动延伸节点
+- **油耗记录**：记录加油信息，自动计算百公里油耗
+- **油价查询**：实时查询本地油价
+- **养车助理**：AI 智能分析车辆状况，生成保养建议
+- **找回密码**：支持用户自设新密码
 
-### `npm start`
+## 技术栈
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+- React 18 + TypeScript
+- Ant Design 5
+- React Router 6
+- 本地存储（localStorage）
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+## 快速开始
 
-### `npm test`
+```bash
+# 安装依赖
+npm install
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+# 启动开发服务器
+npm start
 
-### `npm run build`
+# 构建生产版本
+npm run build
+```
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## 在线演示
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+- GitHub Pages: https://JIANG7828.github.io/cheliangbaoyangweixiu
+- Gitee Pages: https://jiangyanmin7828.gitee.io/cheliangbaoyangweixiu
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## 默认账号
 
-### `npm run eject`
+- 用户名：`admin`
+- 密码：`123456`
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+## 项目截图
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+（待补充）
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+## 更新日志
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
+### 2025-05-13
+- 优化保养周期追踪逻辑，修复跨里程标记 bug
+- 找回密码改为三步流程，支持用户自设新密码
+- 登记车辆时可选保养间隔
+- 新增油耗记录与油价查询功能
+- 新增 AI 养车助理
